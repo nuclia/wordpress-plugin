@@ -281,20 +281,15 @@ class Nuclia_Background_Processor {
 	 * @return int The number of pending actions.
 	 */
 	public function get_pending_count(): int {
-		if ( ! function_exists( 'as_get_scheduled_actions' ) ) {
-			return 0;
-		}
-
-		$actions = as_get_scheduled_actions(
+		$count = $this->as_count_scheduled_actions(
 			[
 				'hook'   => self::HOOK_PROCESS_SINGLE,
 				'group'  => self::GROUP,
-				'status' => ActionScheduler_Store::STATUS_PENDING,
-			],
-			'ids'
+				'status' => ActionScheduler_Store::STATUS_PENDING
+			]
 		);
 
-		return count( $actions );
+		return $count;
 	}
 
 	/**
@@ -408,6 +403,21 @@ class Nuclia_Background_Processor {
 			'is_active' => $this->get_pending_count() > 0 || $this->get_running_count() > 0,
 		];
 	}
+	
+	protected function as_count_scheduled_actions( $args = array() ) {
+		if ( ! ActionScheduler::is_initialized( __FUNCTION__ ) ) {
+			return 0;
+		}
+		$store = ActionScheduler::store();
+		foreach ( array( 'date', 'modified' ) as $key ) {
+			if ( isset( $args[ $key ] ) ) {
+				$args[ $key ] = as_get_datetime_object( $args[ $key ] );
+			}
+		}
+		$count = $store->query_actions( $args, 'count' );
+		return $count;
+	}
+	
 
 	/**
 	 * Get pending count for a specific post type.
@@ -419,25 +429,17 @@ class Nuclia_Background_Processor {
 	 * @return int The number of pending actions for this post type.
 	 */
 	public function get_pending_count_for_post_type( string $post_type ): int {
-		if ( ! function_exists( 'as_get_scheduled_actions' ) ) {
-			return 0;
-		}
-
-		$actions = as_get_scheduled_actions(
+		$count = $this->as_count_scheduled_actions(
 			[
 				'hook'   => self::HOOK_PROCESS_SINGLE,
 				'group'  => self::GROUP,
 				'status' => ActionScheduler_Store::STATUS_PENDING,
+				'partial_args_matching' => 'json',
+				'args'   => [
+					'post_type' => $post_type
+				]
 			],
-			'ARRAY_A'
 		);
-
-		$count = 0;
-		foreach ( $actions as $action ) {
-			if ( isset( $action['args']['post_type'] ) && $action['args']['post_type'] === $post_type ) {
-				$count++;
-			}
-		}
 
 		return $count;
 	}
