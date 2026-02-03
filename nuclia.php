@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name:       Progress Agentic RAG for WP
+ * Plugin Name:       Progress Agentic RAG
  * Plugin URI:        https://github.com/nuclia/wordpress-plugin
  * Description:       Integrate the powerful Progress Agentic RAG service with WordPress
  * Version:           1.0.0
