@@ -214,7 +214,7 @@ class Nuclia_API {
 	 * @param string  $rid  Resource ID in nucliaDB
 	 * @param string $body The content to index.
 	 */
-	public function modify_resource( int $post_id, string $rid, string $body ): void {
+	public function modify_resource( int $post_id, string $rid, WP_Post $post ): void {
 
 		$uri = "{$this->endpoint}resource/{$rid}";
 		$args = [
@@ -223,7 +223,7 @@ class Nuclia_API {
 				'Content-type' => 'application/json',
 				'X-NUCLIA-SERVICEACCOUNT' => 'Bearer ' .$this->settings->get_token()
 			],
-			'body' => $body
+			'body' => $this->prepare_nuclia_resource_body( $post )
 		];
 		
 		nuclia_log( $uri );
