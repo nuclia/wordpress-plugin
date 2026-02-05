@@ -179,12 +179,6 @@ class Nuclia_Background_Processor {
 
 		try {
 			if ( $post_type === 'attachment' ) {
-				// Skip images
-				if ( wp_attachment_is_image( $post ) ) {
-					nuclia_log( "Post {$post_id} is an image, skipping." );
-					return;
-				}
-				
 				// Hack: attachments have 'inherit' status
 				$post->post_status = 'publish';
 				$this->plugin->get_api()->create_resource( $post_id, $post );

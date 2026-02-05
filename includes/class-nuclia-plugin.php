@@ -141,9 +141,6 @@ class Nuclia_Plugin {
 
 		$post = get_post( $post_id );
 		
-		// we don't index images
-		if ( wp_attachment_is_image( $post ) ) return;
-		
 		// hack attachments are inherit
 		$post->post_status = 'publish'; 
 		
