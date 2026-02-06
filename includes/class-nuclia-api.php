@@ -85,9 +85,14 @@ class Nuclia_API {
 		];
 
 		$taxonomy_label_map = $this->settings->get_taxonomy_label_map();
+		$classifications = [];
 		if ( ! empty( $taxonomy_label_map ) ) {
+			$classifications = $this->build_taxonomy_classifications( $post );
+		}
+
+		if ( ! empty( $classifications ) ) {
 			$body['usermetadata'] = [
-				'classifications' => $this->build_taxonomy_classifications( $post ),
+				'classifications' => $classifications,
 			];
 		}
 		
@@ -389,8 +394,15 @@ class Nuclia_API {
 
 			$labelset = isset( $config['labelset'] ) ? trim( (string) $config['labelset'] ) : '';
 			$term_map = is_array( $config['terms'] ?? null ) ? $config['terms'] : [];
+			$fallback = is_array( $config['fallback'] ?? null ) ? $config['fallback'] : [];
+			$fallback_labelset = isset( $fallback['labelset'] ) ? trim( (string) $fallback['labelset'] ) : '';
+			$fallback_labels = is_array( $fallback['labels'] ?? null ) ? $fallback['labels'] : [];
 
 			if ( $labelset === '' || empty( $term_map ) ) {
+				$term_map = [];
+			}
+
+			if ( empty( $term_map ) && $fallback_labelset === '' ) {
 				continue;
 			}
 
@@ -399,21 +411,43 @@ class Nuclia_API {
 				continue;
 			}
 
-			foreach ( $term_ids as $term_id ) {
-				$term_id = (int) $term_id;
-				if ( empty( $term_map[ $term_id ] ) ) {
-					continue;
+			if ( empty( $term_ids ) ) {
+				if ( $fallback_labelset !== '' && ! empty( $fallback_labels ) ) {
+					foreach ( $fallback_labels as $label ) {
+						$label = trim( (string) $label );
+						if ( $label === '' ) {
+							continue;
+						}
+						$classifications[] = [
+							'labelset' => $fallback_labelset,
+							'label' => $label
+						];
+					}
 				}
+			} else {
+				foreach ( $term_ids as $term_id ) {
+					$term_id = (int) $term_id;
+					if ( empty( $term_map[ $term_id ] ) ) {
+						continue;
+					}
 
-				$label = trim( (string) $term_map[ $term_id ] );
-				if ( $label === '' ) {
-					continue;
+					$labels = $term_map[ $term_id ];
+					if ( ! is_array( $labels ) ) {
+						$labels = $labels !== '' ? [ (string) $labels ] : [];
+					}
+
+					foreach ( $labels as $label ) {
+						$label = trim( (string) $label );
+						if ( $label === '' ) {
+							continue;
+						}
+
+						$classifications[] = [
+							'labelset' => $labelset,
+							'label' => $label
+						];
+					}
 				}
-
-				$classifications[] = [
-					'labelset' => $labelset,
-					'label' => $label
-				];
 			}
 		}
 

@@ -34,6 +34,9 @@
 			if (e.target && e.target.classList.contains('nuclia-labelset-select')) {
 				handleLabelsetChange(e);
 			}
+		if (e.target && e.target.classList.contains('nuclia-fallback-labelset-select')) {
+			handleFallbackLabelsetChange(e);
+		}
 		});
 
 		// Add mapping button
@@ -325,6 +328,19 @@
 	}
 
 	/**
+	 * Handle fallback labelset select change
+	 */
+	function handleFallbackLabelsetChange(e) {
+		var select = e.target;
+		var taxonomy = select.dataset.taxonomy || '';
+		var labelset = select.value || '';
+		if (!taxonomy) {
+			return;
+		}
+		updateFallbackLabelSelects(taxonomy, labelset);
+	}
+
+	/**
 	 * Handle add mapping button click
 	 */
 	function handleAddMappingClick() {
@@ -466,48 +482,88 @@
 			noTermsNotice.style.margin = '8px 0 0 0';
 			noTermsNotice.textContent = 'No terms available for this taxonomy.';
 			block.appendChild(noTermsNotice);
-			return block;
+		} else {
+			var table = document.createElement('table');
+			table.className = 'widefat striped';
+			table.style.marginTop = '10px';
+
+			var thead = document.createElement('thead');
+			var headRow = document.createElement('tr');
+			var termTh = document.createElement('th');
+			termTh.textContent = 'Term';
+			var labelTh = document.createElement('th');
+			labelTh.textContent = 'Nuclia labels';
+			headRow.appendChild(termTh);
+			headRow.appendChild(labelTh);
+			thead.appendChild(headRow);
+			table.appendChild(thead);
+
+			var tbody = document.createElement('tbody');
+			terms.forEach(function(term) {
+				var row = document.createElement('tr');
+				var termCell = document.createElement('td');
+				termCell.textContent = term.name;
+				var labelCell = document.createElement('td');
+				var labelContainer = document.createElement('div');
+				labelContainer.className = 'nuclia-label-checkboxes';
+				labelContainer.dataset.taxonomy = taxonomyKey;
+				labelContainer.dataset.termId = term.id;
+				labelContainer.innerHTML = '<em>Select a labelset to load labels.</em>';
+				labelCell.appendChild(labelContainer);
+				row.appendChild(termCell);
+				row.appendChild(labelCell);
+				tbody.appendChild(row);
+			});
+
+			table.appendChild(tbody);
+			block.appendChild(table);
 		}
 
-		var table = document.createElement('table');
-		table.className = 'widefat striped';
-		table.style.marginTop = '10px';
+		var fallbackSection = document.createElement('div');
+		fallbackSection.className = 'nuclia-fallback-section';
+		fallbackSection.style.marginTop = '12px';
+		fallbackSection.style.paddingTop = '10px';
+		fallbackSection.style.borderTop = '1px dashed #dcdcde';
 
-		var thead = document.createElement('thead');
-		var headRow = document.createElement('tr');
-		var termTh = document.createElement('th');
-		termTh.textContent = 'Term';
-		var labelTh = document.createElement('th');
-		labelTh.textContent = 'Nuclia label';
-		headRow.appendChild(termTh);
-		headRow.appendChild(labelTh);
-		thead.appendChild(headRow);
-		table.appendChild(thead);
+		var fallbackTitle = document.createElement('p');
+		fallbackTitle.style.margin = '0 0 6px 0';
+		fallbackTitle.innerHTML = '<strong>Fallback labels (when no terms assigned)</strong>';
+		fallbackSection.appendChild(fallbackTitle);
 
-		var tbody = document.createElement('tbody');
-		terms.forEach(function(term) {
-			var row = document.createElement('tr');
-			var termCell = document.createElement('td');
-			termCell.textContent = term.name;
-			var labelCell = document.createElement('td');
-			var labelSelect = document.createElement('select');
-			labelSelect.className = 'regular-text nuclia-label-select';
-			labelSelect.dataset.taxonomy = taxonomyKey;
-			labelSelect.name = 'nuclia_taxonomy_label_map[' + taxonomyKey + '][terms][' + term.id + ']';
+		var fallbackLabel = document.createElement('label');
+		fallbackLabel.setAttribute('for', 'nuclia_fallback_labelset_' + taxonomyKey);
+		fallbackLabel.textContent = 'Labelset:';
+		fallbackSection.appendChild(fallbackLabel);
+		fallbackSection.appendChild(document.createTextNode(' '));
 
-			var labelDefault = document.createElement('option');
-			labelDefault.value = '';
-			labelDefault.textContent = 'Select a label';
-			labelSelect.appendChild(labelDefault);
+		var fallbackSelect = document.createElement('select');
+		fallbackSelect.className = 'regular-text nuclia-fallback-labelset-select';
+		fallbackSelect.dataset.taxonomy = taxonomyKey;
+		fallbackSelect.id = 'nuclia_fallback_labelset_' + taxonomyKey;
+		fallbackSelect.name = 'nuclia_taxonomy_label_map[' + taxonomyKey + '][fallback][labelset]';
 
-			labelCell.appendChild(labelSelect);
-			row.appendChild(termCell);
-			row.appendChild(labelCell);
-			tbody.appendChild(row);
+		var fallbackDefault = document.createElement('option');
+		fallbackDefault.value = '';
+		fallbackDefault.textContent = 'Select a labelset';
+		fallbackSelect.appendChild(fallbackDefault);
+
+		labelsets.forEach(function(labelset) {
+			var option = document.createElement('option');
+			option.value = labelset;
+			option.textContent = labelset;
+			fallbackSelect.appendChild(option);
 		});
 
-		table.appendChild(tbody);
-		block.appendChild(table);
+		fallbackSection.appendChild(fallbackSelect);
+
+		var fallbackLabels = document.createElement('div');
+		fallbackLabels.className = 'nuclia-fallback-labels';
+		fallbackLabels.dataset.taxonomy = taxonomyKey;
+		fallbackLabels.style.marginTop = '8px';
+		fallbackLabels.innerHTML = '<em>Select a labelset to load labels.</em>';
+		fallbackSection.appendChild(fallbackLabels);
+
+		block.appendChild(fallbackSection);
 
 		return block;
 	}
@@ -526,17 +582,15 @@
 	 * Update label selects for a taxonomy
 	 */
 	function updateLabelSelects(taxonomy, labelset) {
-		var labelSelects = document.querySelectorAll('.nuclia-label-select[data-taxonomy="' + taxonomy + '"]');
+		var labelContainers = document.querySelectorAll('.nuclia-label-checkboxes[data-taxonomy="' + taxonomy + '"]');
 
-		labelSelects.forEach(function(select) {
-			select.disabled = true;
-			select.innerHTML = '<option value="">Loading labels...</option>';
+		labelContainers.forEach(function(container) {
+			container.innerHTML = '<em>Loading labels...</em>';
 		});
 
 		if (!labelset) {
-			labelSelects.forEach(function(select) {
-				select.disabled = false;
-				select.innerHTML = '<option value="">Select a label</option>';
+			labelContainers.forEach(function(container) {
+				container.innerHTML = '<em>Select a labelset to load labels.</em>';
 			});
 			return;
 		}
@@ -559,26 +613,122 @@
 		})
 		.then(function(response) {
 			var labels = (response && response.success && response.data && response.data.labels) ? response.data.labels : [];
-			labelSelects.forEach(function(select) {
-				var current = select.value || '';
-				select.disabled = false;
-				select.innerHTML = '<option value="">Select a label</option>';
+			labelContainers.forEach(function(container) {
+				var current = [];
+				var currentInputs = container.querySelectorAll('input[type="checkbox"]:checked');
+				currentInputs.forEach(function(input) {
+					current.push(input.value);
+				});
+
+				container.innerHTML = '';
+				if (!labels.length) {
+					container.innerHTML = '<em>No labels available.</em>';
+					return;
+				}
+
 				labels.forEach(function(label) {
-					var option = document.createElement('option');
-					option.value = label;
-					option.textContent = label;
-					if (current === label) {
-						option.selected = true;
+					var labelWrap = document.createElement('label');
+					labelWrap.style.display = 'block';
+					labelWrap.style.margin = '2px 0';
+
+					var checkbox = document.createElement('input');
+					checkbox.type = 'checkbox';
+					checkbox.className = 'nuclia-label-checkbox';
+					checkbox.value = label;
+					checkbox.name = 'nuclia_taxonomy_label_map[' + taxonomy + '][terms][' + container.dataset.termId + '][]';
+					if (current.indexOf(label) !== -1) {
+						checkbox.checked = true;
 					}
-					select.appendChild(option);
+
+					labelWrap.appendChild(checkbox);
+					labelWrap.appendChild(document.createTextNode(' ' + label));
+					container.appendChild(labelWrap);
 				});
 			});
 		})
 		.catch(function(error) {
 			console.error('Labelset fetch error:', error);
-			labelSelects.forEach(function(select) {
-				select.disabled = false;
-				select.innerHTML = '<option value="">Select a label</option>';
+			labelContainers.forEach(function(container) {
+				container.innerHTML = '<em>Select a labelset to load labels.</em>';
+			});
+		});
+	}
+
+	/**
+	 * Update fallback labels list for taxonomy
+	 */
+	function updateFallbackLabelSelects(taxonomy, labelset) {
+		var containers = document.querySelectorAll('.nuclia-fallback-labels[data-taxonomy="' + taxonomy + '"]');
+		if (!containers.length) {
+			return;
+		}
+
+		containers.forEach(function(container) {
+			container.innerHTML = '<em>Loading labels...</em>';
+		});
+
+		if (!labelset) {
+			containers.forEach(function(container) {
+				container.innerHTML = '<em>Select a labelset to load labels.</em>';
+			});
+			return;
+		}
+
+		var formData = new FormData();
+		formData.append('action', 'nuclia_get_labelset_labels');
+		formData.append('labelset', labelset);
+		formData.append('nonce', getLabelsNonce());
+
+		fetch(ajaxurl, {
+			method: 'POST',
+			credentials: 'same-origin',
+			body: formData
+		})
+		.then(function(response) {
+			if (!response.ok) {
+				throw new Error('Network response was not ok');
+			}
+			return response.json();
+		})
+		.then(function(response) {
+			var labels = (response && response.success && response.data && response.data.labels) ? response.data.labels : [];
+			containers.forEach(function(container) {
+				var current = [];
+				var currentInputs = container.querySelectorAll('input[type="checkbox"]:checked');
+				currentInputs.forEach(function(input) {
+					current.push(input.value);
+				});
+
+				container.innerHTML = '';
+				if (!labels.length) {
+					container.innerHTML = '<em>No labels available.</em>';
+					return;
+				}
+
+				labels.forEach(function(label) {
+					var labelWrap = document.createElement('label');
+					labelWrap.style.display = 'block';
+					labelWrap.style.margin = '2px 0';
+
+					var checkbox = document.createElement('input');
+					checkbox.type = 'checkbox';
+					checkbox.className = 'nuclia-fallback-label-checkbox';
+					checkbox.value = label;
+					checkbox.name = 'nuclia_taxonomy_label_map[' + taxonomy + '][fallback][labels][]';
+					if (current.indexOf(label) !== -1) {
+						checkbox.checked = true;
+					}
+
+					labelWrap.appendChild(checkbox);
+					labelWrap.appendChild(document.createTextNode(' ' + label));
+					container.appendChild(labelWrap);
+				});
+			});
+		})
+		.catch(function(error) {
+			console.error('Fallback labelset fetch error:', error);
+			containers.forEach(function(container) {
+				container.innerHTML = '<em>Select a labelset to load labels.</em>';
 			});
 		});
 	}

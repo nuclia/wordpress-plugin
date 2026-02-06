@@ -423,6 +423,9 @@ class Nuclia_Admin_Page_Settings {
 			$taxonomy = $taxonomies[ $taxonomy_key ];
 			$taxonomy_labelset = $config['labelset'] ?? '';
 			$term_map = $config['terms'] ?? [];
+			$fallback_config = is_array( $config['fallback'] ?? null ) ? $config['fallback'] : [];
+			$fallback_labelset = $fallback_config['labelset'] ?? '';
+			$fallback_labels = is_array( $fallback_config['labels'] ?? null ) ? $fallback_config['labels'] : [];
 
 			echo '<div class="nuclia-mapping-block" data-taxonomy="' . esc_attr( $taxonomy_key ) . '" style="margin-top: 15px; padding: 10px; background: #fff; border: 1px solid #dcdcde;">';
 			echo '<div style="display: flex; align-items: center; justify-content: space-between;">';
@@ -457,34 +460,72 @@ class Nuclia_Admin_Page_Settings {
 
 			if ( empty( $terms ) || is_wp_error( $terms ) ) {
 				echo '<p style="margin: 8px 0 0 0;">' . esc_html__( 'No terms available for this taxonomy.', 'progress-agentic-rag' ) . '</p>';
-				echo '</div>';
-				continue;
-			}
+			} else {
+				$labels = $this->plugin->get_api()->get_labelset_labels( (string) $taxonomy_labelset );
+				echo '<table class="widefat striped" style="margin-top: 10px;">';
+				echo '<thead><tr><th>' . esc_html__( 'Term', 'progress-agentic-rag' ) . '</th><th>' . esc_html__( 'Nuclia labels', 'progress-agentic-rag' ) . '</th></tr></thead>';
+				echo '<tbody>';
 
-			$labels = $this->plugin->get_api()->get_labelset_labels( (string) $taxonomy_labelset );
-			echo '<table class="widefat striped" style="margin-top: 10px;">';
-			echo '<thead><tr><th>' . esc_html__( 'Term', 'progress-agentic-rag' ) . '</th><th>' . esc_html__( 'Nuclia label', 'progress-agentic-rag' ) . '</th></tr></thead>';
-			echo '<tbody>';
-
-			foreach ( $terms as $term ) {
-				$term_label = $term_map[ $term->term_id ] ?? '';
-				echo '<tr>';
-				echo '<td>' . esc_html( $term->name ) . '</td>';
-				echo '<td><select class="regular-text nuclia-label-select" data-taxonomy="' . esc_attr( $taxonomy_key ) . '" ';
-				echo 'name="nuclia_taxonomy_label_map[' . esc_attr( $taxonomy_key ) . '][terms][' . esc_attr( $term->term_id ) . ']">';
-				echo '<option value="">' . esc_html__( 'Select a label', 'progress-agentic-rag' ) . '</option>';
-				foreach ( $labels as $label ) {
-					$selected = ( $term_label === $label ) ? 'selected="selected"' : '';
-					echo '<option value="' . esc_attr( $label ) . '" ' . $selected . '>' . esc_html( $label ) . '</option>';
+				foreach ( $terms as $term ) {
+					$term_labels = $term_map[ $term->term_id ] ?? [];
+					if ( ! is_array( $term_labels ) ) {
+						$term_labels = $term_labels !== '' ? [ (string) $term_labels ] : [];
+					}
+					echo '<tr>';
+					echo '<td>' . esc_html( $term->name ) . '</td>';
+					echo '<td>';
+					echo '<div class="nuclia-label-checkboxes" data-taxonomy="' . esc_attr( $taxonomy_key ) . '" data-term-id="' . esc_attr( $term->term_id ) . '">';
+					foreach ( $labels as $label ) {
+						$checked = in_array( $label, $term_labels, true ) ? 'checked="checked"' : '';
+						echo '<label style="display: block; margin: 2px 0;">';
+						echo '<input type="checkbox" class="nuclia-label-checkbox" value="' . esc_attr( $label ) . '" ' . $checked . ' ';
+						echo 'name="nuclia_taxonomy_label_map[' . esc_attr( $taxonomy_key ) . '][terms][' . esc_attr( $term->term_id ) . '][]"> ';
+						echo esc_html( $label ) . '</label>';
+					}
+					if ( empty( $labels ) ) {
+						echo '<em>' . esc_html__( 'No labels available.', 'progress-agentic-rag' ) . '</em>';
+					}
+					echo '</div>';
+					echo '</td>';
+					echo '</tr>';
 				}
-				echo '</select></td>';
-				echo '</tr>';
+
+				echo '</tbody></table>';
+				if ( $taxonomy_labelset !== '' && empty( $labels ) ) {
+					echo '<p style="margin: 8px 0 0 0; color: #d63638;">' . esc_html__( 'No labels found for the selected labelset. Please verify the labelset exists in Nuclia and reload the page.', 'progress-agentic-rag' ) . '</p>';
+				}
 			}
 
-			echo '</tbody></table>';
-			if ( $taxonomy_labelset !== '' && empty( $labels ) ) {
-				echo '<p style="margin: 8px 0 0 0; color: #d63638;">' . esc_html__( 'No labels found for the selected labelset. Please verify the labelset exists in Nuclia and reload the page.', 'progress-agentic-rag' ) . '</p>';
+			echo '<div class="nuclia-fallback-section" style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #dcdcde;">';
+			echo '<p style="margin: 0 0 6px 0;"><strong>' . esc_html__( 'Fallback labels (when no terms assigned)', 'progress-agentic-rag' ) . '</strong></p>';
+			echo '<label for="nuclia_fallback_labelset_' . esc_attr( $taxonomy_key ) . '">';
+			echo esc_html__( 'Labelset', 'progress-agentic-rag' ) . ':</label> ';
+			echo '<select class="regular-text nuclia-fallback-labelset-select" data-taxonomy="' . esc_attr( $taxonomy_key ) . '" id="nuclia_fallback_labelset_' . esc_attr( $taxonomy_key ) . '" ';
+			echo 'name="nuclia_taxonomy_label_map[' . esc_attr( $taxonomy_key ) . '][fallback][labelset]">';
+			echo '<option value="">' . esc_html__( 'Select a labelset', 'progress-agentic-rag' ) . '</option>';
+			foreach ( $labelsets as $labelset ) {
+				$selected = ( $fallback_labelset === $labelset ) ? 'selected="selected"' : '';
+				echo '<option value="' . esc_attr( $labelset ) . '" ' . $selected . '>' . esc_html( $labelset ) . '</option>';
 			}
+			echo '</select>';
+
+			$fallback_available_labels = $fallback_labelset !== '' ? $this->plugin->get_api()->get_labelset_labels( (string) $fallback_labelset ) : [];
+			echo '<div class="nuclia-fallback-labels" data-taxonomy="' . esc_attr( $taxonomy_key ) . '" style="margin-top: 8px;">';
+			if ( $fallback_labelset === '' ) {
+				echo '<em>' . esc_html__( 'Select a labelset to load labels.', 'progress-agentic-rag' ) . '</em>';
+			} elseif ( empty( $fallback_available_labels ) ) {
+				echo '<em>' . esc_html__( 'No labels available.', 'progress-agentic-rag' ) . '</em>';
+			} else {
+				foreach ( $fallback_available_labels as $label ) {
+					$checked = in_array( $label, $fallback_labels, true ) ? 'checked="checked"' : '';
+					echo '<label style="display: block; margin: 2px 0;">';
+					echo '<input type="checkbox" class="nuclia-fallback-label-checkbox" value="' . esc_attr( $label ) . '" ' . $checked . ' ';
+					echo 'name="nuclia_taxonomy_label_map[' . esc_attr( $taxonomy_key ) . '][fallback][labels][]"> ';
+					echo esc_html( $label ) . '</label>';
+				}
+			}
+			echo '</div>';
+			echo '</div>';
 			echo '</div>';
 		}
 
@@ -792,26 +833,62 @@ class Nuclia_Admin_Page_Settings {
 			$labelset = isset( $config['labelset'] ) ? sanitize_text_field( (string) $config['labelset'] ) : '';
 			$terms = is_array( $config['terms'] ?? null ) ? $config['terms'] : [];
 			$clean_terms = [];
+			$fallback = is_array( $config['fallback'] ?? null ) ? $config['fallback'] : [];
+			$fallback_labelset = isset( $fallback['labelset'] ) ? sanitize_text_field( (string) $fallback['labelset'] ) : '';
+			$fallback_labels = is_array( $fallback['labels'] ?? null ) ? $fallback['labels'] : [];
+			$clean_fallback_labels = [];
 
-			foreach ( $terms as $term_id => $label ) {
+			foreach ( $terms as $term_id => $labels ) {
 				$term_id = (int) $term_id;
 				if ( $term_id <= 0 || ! term_exists( $term_id, $taxonomy ) ) {
 					continue;
 				}
 
+				if ( ! is_array( $labels ) ) {
+					$labels = $labels !== '' ? [ (string) $labels ] : [];
+				}
+
+				$clean_labels = [];
+				foreach ( $labels as $label ) {
+					$label = sanitize_text_field( (string) $label );
+					if ( $label === '' ) {
+						continue;
+					}
+					$clean_labels[] = $label;
+				}
+
+				$clean_labels = array_values( array_unique( $clean_labels ) );
+				if ( empty( $clean_labels ) ) {
+					continue;
+				}
+
+				$clean_terms[ $term_id ] = $clean_labels;
+			}
+
+			foreach ( $fallback_labels as $label ) {
 				$label = sanitize_text_field( (string) $label );
 				if ( $label === '' ) {
 					continue;
 				}
-
-				$clean_terms[ $term_id ] = $label;
+				$clean_fallback_labels[] = $label;
 			}
 
-			if ( $labelset !== '' && ! empty( $clean_terms ) ) {
-				$sanitized[ $taxonomy ] = [
-					'labelset' => $labelset,
-					'terms' => $clean_terms,
-				];
+			$clean_fallback_labels = array_values( array_unique( $clean_fallback_labels ) );
+			$has_term_mapping = ( $labelset !== '' && ! empty( $clean_terms ) );
+			$has_fallback = ( $fallback_labelset !== '' && ! empty( $clean_fallback_labels ) );
+
+			if ( $has_term_mapping || $has_fallback ) {
+				$sanitized[ $taxonomy ] = [];
+				if ( $has_term_mapping ) {
+					$sanitized[ $taxonomy ]['labelset'] = $labelset;
+					$sanitized[ $taxonomy ]['terms'] = $clean_terms;
+				}
+				if ( $has_fallback ) {
+					$sanitized[ $taxonomy ]['fallback'] = [
+						'labelset' => $fallback_labelset,
+						'labels' => $clean_fallback_labels,
+					];
+				}
 			}
 		}
 

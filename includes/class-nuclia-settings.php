@@ -89,7 +89,25 @@ class Nuclia_Settings {
 	 * @return array
 	 */
 	public function get_taxonomy_label_map(): array {
-		return (array) get_option( 'nuclia_taxonomy_label_map', [] );
+		$map = (array) get_option( 'nuclia_taxonomy_label_map', [] );
+		foreach ( $map as $taxonomy => $config ) {
+			if ( ! is_array( $config ) ) {
+				continue;
+			}
+			$terms = is_array( $config['terms'] ?? null ) ? $config['terms'] : [];
+			foreach ( $terms as $term_id => $labels ) {
+				if ( is_array( $labels ) ) {
+					continue;
+				}
+				if ( is_string( $labels ) && $labels !== '' ) {
+					$terms[ $term_id ] = [ $labels ];
+					continue;
+				}
+				unset( $terms[ $term_id ] );
+			}
+			$map[ $taxonomy ]['terms'] = $terms;
+		}
+		return $map;
 	}
 
 	/**
