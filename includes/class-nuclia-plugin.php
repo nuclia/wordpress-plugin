@@ -66,11 +66,9 @@ class Nuclia_Plugin {
 		if ( is_admin() ) {
 			
 			new Nuclia_Admin_Page_Settings( $this );
+			add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
 			
 			if ( $this->settings->get_api_is_reachable() ) {
-				// load script
-				add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
-
 				// post, page and custom post type
 				add_action( 'save_post', [ $this, 'create_or_modify_nucliadb_resource' ], 10, 2 );	// $post_id, $post
 				// attachment
@@ -269,7 +267,11 @@ class Nuclia_Plugin {
 	 *
 	 * @since   1.0.0
 	 */
-	public function enqueue_scripts(): void {
+	public function enqueue_scripts( string $hook = '' ): void {
+		if ( $hook !== 'toplevel_page_progress-agentic-rag' ) {
+			return;
+		}
+
 		$plugin_url = plugin_dir_url(__FILE__) . 'admin/js/reindex-button.js';
 		wp_enqueue_script(
 			'nuclia-admin-reindex-button',
@@ -285,6 +287,52 @@ class Nuclia_Plugin {
 			'nucliaReindex',
 			[
 				'nonce' => wp_create_nonce( 'nuclia_reindex_nonce' ),
+				'labelsNonce' => wp_create_nonce( 'nuclia_labels_nonce' ),
+			]
+		);
+
+		$taxonomies = get_taxonomies(
+			[
+				'public' => true,
+			],
+			'objects'
+		);
+
+		$taxonomy_data = [];
+		foreach ( $taxonomies as $taxonomy ) {
+			$terms = get_terms(
+				[
+					'taxonomy' => $taxonomy->name,
+					'hide_empty' => false,
+				]
+			);
+
+			if ( is_wp_error( $terms ) ) {
+				$terms = [];
+			}
+
+			$taxonomy_data[ $taxonomy->name ] = [
+				'label' => $taxonomy->labels->name ?? $taxonomy->name,
+				'terms' => array_map(
+					static function ( $term ) {
+						return [
+							'id' => $term->term_id,
+							'name' => $term->name,
+						];
+					},
+					$terms
+				),
+			];
+		}
+
+		$labelsets = $this->api->get_labelsets();
+
+		wp_localize_script(
+			'nuclia-admin-reindex-button',
+			'nucliaMappingData',
+			[
+				'taxonomies' => $taxonomy_data,
+				'labelsets' => $labelsets,
 			]
 		);
 	}

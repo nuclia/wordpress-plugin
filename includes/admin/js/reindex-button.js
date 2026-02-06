@@ -28,6 +28,27 @@
 		if (pendingStatus) {
 			startStatusPolling();
 		}
+
+		// Labelset change handlers (delegate for dynamic blocks)
+		document.addEventListener('change', function(e) {
+			if (e.target && e.target.classList.contains('nuclia-labelset-select')) {
+				handleLabelsetChange(e);
+			}
+		});
+
+		// Add mapping button
+		var addMappingButton = document.querySelector('.nuclia-add-mapping');
+		if (addMappingButton) {
+			addMappingButton.addEventListener('click', handleAddMappingClick);
+		}
+
+		// Remove mapping buttons (delegate)
+		document.addEventListener('click', function(e) {
+			if (e.target && e.target.classList.contains('nuclia-remove-mapping')) {
+				e.preventDefault();
+				handleRemoveMappingClick(e);
+			}
+		});
 	});
 
 	/**
@@ -289,10 +310,291 @@
 	}
 
 	/**
+	 * Handle labelset select change
+	 */
+	function handleLabelsetChange(e) {
+		var select = e.target;
+		var taxonomy = select.dataset.taxonomy || '';
+		var labelset = select.value || '';
+
+		if (!taxonomy) {
+			return;
+		}
+
+		updateLabelSelects(taxonomy, labelset);
+	}
+
+	/**
+	 * Handle add mapping button click
+	 */
+	function handleAddMappingClick() {
+		var taxonomySelect = document.getElementById('nuclia_add_taxonomy_select');
+		var container = document.getElementById('nuclia-mapping-container');
+		if (!taxonomySelect || !container) {
+			return;
+		}
+
+		var taxonomyKey = taxonomySelect.value;
+		if (!taxonomyKey) {
+			return;
+		}
+
+		if (container.querySelector('.nuclia-mapping-block[data-taxonomy="' + taxonomyKey + '"]')) {
+			return;
+		}
+
+		var block = buildMappingBlock(taxonomyKey);
+		if (!block) {
+			return;
+		}
+
+		container.appendChild(block);
+
+		var selectedOption = taxonomySelect.querySelector('option[value="' + taxonomyKey + '"]');
+		if (selectedOption) {
+			selectedOption.remove();
+			taxonomySelect.value = '';
+		}
+	}
+
+	/**
+	 * Handle remove mapping button click
+	 */
+	function handleRemoveMappingClick(e) {
+		var block = e.target.closest('.nuclia-mapping-block');
+		if (!block) {
+			return;
+		}
+
+		var taxonomyKey = block.dataset.taxonomy || '';
+		block.remove();
+
+		if (!taxonomyKey) {
+			return;
+		}
+
+		var taxonomySelect = document.getElementById('nuclia_add_taxonomy_select');
+		var data = getMappingData();
+		if (taxonomySelect && data.taxonomies && data.taxonomies[taxonomyKey]) {
+			var option = document.createElement('option');
+			option.value = taxonomyKey;
+			option.textContent = data.taxonomies[taxonomyKey].label || taxonomyKey;
+			taxonomySelect.appendChild(option);
+		}
+	}
+
+	/**
+	 * Build a new mapping block for a taxonomy
+	 */
+	function buildMappingBlock(taxonomyKey) {
+		var data = getMappingData();
+		if (!data.taxonomies || !data.taxonomies[taxonomyKey]) {
+			return null;
+		}
+
+		var taxonomy = data.taxonomies[taxonomyKey];
+		var labelsets = data.labelsets || [];
+
+		var block = document.createElement('div');
+		block.className = 'nuclia-mapping-block';
+		block.dataset.taxonomy = taxonomyKey;
+		block.style.marginTop = '15px';
+		block.style.padding = '10px';
+		block.style.background = '#fff';
+		block.style.border = '1px solid #dcdcde';
+
+		var header = document.createElement('div');
+		header.style.display = 'flex';
+		header.style.alignItems = 'center';
+		header.style.justifyContent = 'space-between';
+
+		var headerText = document.createElement('div');
+		var title = document.createElement('h4');
+		title.style.margin = '0 0 8px 0';
+		title.textContent = taxonomy.label || taxonomyKey;
+		var slug = document.createElement('p');
+		slug.style.margin = '0 0 8px 0';
+		slug.textContent = taxonomyKey;
+		headerText.appendChild(title);
+		headerText.appendChild(slug);
+
+		var removeButton = document.createElement('button');
+		removeButton.type = 'button';
+		removeButton.className = 'button link-delete nuclia-remove-mapping';
+		removeButton.textContent = 'Remove';
+
+		header.appendChild(headerText);
+		header.appendChild(removeButton);
+		block.appendChild(header);
+
+		var labelsetLabel = document.createElement('label');
+		labelsetLabel.setAttribute('for', 'nuclia_labelset_' + taxonomyKey);
+		labelsetLabel.textContent = 'Labelset:';
+		block.appendChild(labelsetLabel);
+		block.appendChild(document.createTextNode(' '));
+
+		var labelsetSelect = document.createElement('select');
+		labelsetSelect.className = 'regular-text nuclia-labelset-select';
+		labelsetSelect.dataset.taxonomy = taxonomyKey;
+		labelsetSelect.id = 'nuclia_labelset_' + taxonomyKey;
+		labelsetSelect.name = 'nuclia_taxonomy_label_map[' + taxonomyKey + '][labelset]';
+
+		var defaultOption = document.createElement('option');
+		defaultOption.value = '';
+		defaultOption.textContent = 'Select a labelset';
+		labelsetSelect.appendChild(defaultOption);
+
+		labelsets.forEach(function(labelset) {
+			var option = document.createElement('option');
+			option.value = labelset;
+			option.textContent = labelset;
+			labelsetSelect.appendChild(option);
+		});
+
+		block.appendChild(labelsetSelect);
+
+		if (!labelsets.length) {
+			var labelsetNotice = document.createElement('p');
+			labelsetNotice.style.margin = '8px 0 0 0';
+			labelsetNotice.textContent = 'No labelsets available. Check your Nuclia credentials.';
+			block.appendChild(labelsetNotice);
+		}
+
+		var terms = taxonomy.terms || [];
+		if (!terms.length) {
+			var noTermsNotice = document.createElement('p');
+			noTermsNotice.style.margin = '8px 0 0 0';
+			noTermsNotice.textContent = 'No terms available for this taxonomy.';
+			block.appendChild(noTermsNotice);
+			return block;
+		}
+
+		var table = document.createElement('table');
+		table.className = 'widefat striped';
+		table.style.marginTop = '10px';
+
+		var thead = document.createElement('thead');
+		var headRow = document.createElement('tr');
+		var termTh = document.createElement('th');
+		termTh.textContent = 'Term';
+		var labelTh = document.createElement('th');
+		labelTh.textContent = 'Nuclia label';
+		headRow.appendChild(termTh);
+		headRow.appendChild(labelTh);
+		thead.appendChild(headRow);
+		table.appendChild(thead);
+
+		var tbody = document.createElement('tbody');
+		terms.forEach(function(term) {
+			var row = document.createElement('tr');
+			var termCell = document.createElement('td');
+			termCell.textContent = term.name;
+			var labelCell = document.createElement('td');
+			var labelSelect = document.createElement('select');
+			labelSelect.className = 'regular-text nuclia-label-select';
+			labelSelect.dataset.taxonomy = taxonomyKey;
+			labelSelect.name = 'nuclia_taxonomy_label_map[' + taxonomyKey + '][terms][' + term.id + ']';
+
+			var labelDefault = document.createElement('option');
+			labelDefault.value = '';
+			labelDefault.textContent = 'Select a label';
+			labelSelect.appendChild(labelDefault);
+
+			labelCell.appendChild(labelSelect);
+			row.appendChild(termCell);
+			row.appendChild(labelCell);
+			tbody.appendChild(row);
+		});
+
+		table.appendChild(tbody);
+		block.appendChild(table);
+
+		return block;
+	}
+
+	/**
+	 * Get mapping data from localization
+	 */
+	function getMappingData() {
+		if (typeof nucliaMappingData !== 'undefined') {
+			return nucliaMappingData;
+		}
+		return {taxonomies: {}, labelsets: []};
+	}
+
+	/**
+	 * Update label selects for a taxonomy
+	 */
+	function updateLabelSelects(taxonomy, labelset) {
+		var labelSelects = document.querySelectorAll('.nuclia-label-select[data-taxonomy="' + taxonomy + '"]');
+
+		labelSelects.forEach(function(select) {
+			select.disabled = true;
+			select.innerHTML = '<option value="">Loading labels...</option>';
+		});
+
+		if (!labelset) {
+			labelSelects.forEach(function(select) {
+				select.disabled = false;
+				select.innerHTML = '<option value="">Select a label</option>';
+			});
+			return;
+		}
+
+		var formData = new FormData();
+		formData.append('action', 'nuclia_get_labelset_labels');
+		formData.append('labelset', labelset);
+		formData.append('nonce', getLabelsNonce());
+
+		fetch(ajaxurl, {
+			method: 'POST',
+			credentials: 'same-origin',
+			body: formData
+		})
+		.then(function(response) {
+			if (!response.ok) {
+				throw new Error('Network response was not ok');
+			}
+			return response.json();
+		})
+		.then(function(response) {
+			var labels = (response && response.success && response.data && response.data.labels) ? response.data.labels : [];
+			labelSelects.forEach(function(select) {
+				var current = select.value || '';
+				select.disabled = false;
+				select.innerHTML = '<option value="">Select a label</option>';
+				labels.forEach(function(label) {
+					var option = document.createElement('option');
+					option.value = label;
+					option.textContent = label;
+					if (current === label) {
+						option.selected = true;
+					}
+					select.appendChild(option);
+				});
+			});
+		})
+		.catch(function(error) {
+			console.error('Labelset fetch error:', error);
+			labelSelects.forEach(function(select) {
+				select.disabled = false;
+				select.innerHTML = '<option value="">Select a label</option>';
+			});
+		});
+	}
+
+	/**
 	 * Get the nonce value
 	 */
 	function getNonce() {
 		return (typeof nucliaReindex !== 'undefined' ? nucliaReindex.nonce : '');
+	}
+
+	/**
+	 * Get nonce for labelset fetch
+	 */
+	function getLabelsNonce() {
+		return (typeof nucliaReindex !== 'undefined' ? nucliaReindex.labelsNonce : '');
 	}
 
 })();

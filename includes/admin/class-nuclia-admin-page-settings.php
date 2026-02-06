@@ -72,6 +72,7 @@ class Nuclia_Admin_Page_Settings {
 		add_action( 'wp_ajax_nuclia_schedule_indexing', [ $this, 'ajax_schedule_indexing' ] );
 		add_action( 'wp_ajax_nuclia_cancel_indexing', [ $this, 'ajax_cancel_indexing' ] );
 		add_action( 'wp_ajax_nuclia_get_indexing_status', [ $this, 'ajax_get_indexing_status' ] );
+		add_action( 'wp_ajax_nuclia_get_labelset_labels', [ $this, 'ajax_get_labelset_labels' ] );
 	}
 
 	/**
@@ -157,6 +158,14 @@ class Nuclia_Admin_Page_Settings {
 			$this->slug,
 			'nuclia_section_settings'
 		);
+
+		add_settings_field(
+			'nuclia_taxonomy_label_map',
+			esc_html__( 'Taxonomy label mapping', 'progress-agentic-rag' ),
+			[ $this, 'taxonomy_label_map_callback' ],
+			$this->slug,
+			'nuclia_section_settings'
+		);
 		
 		register_setting(
 			'nuclia_settings',
@@ -191,6 +200,15 @@ class Nuclia_Admin_Page_Settings {
 			[
 				'type' => 'array',
 				'sanitize_callback' => [ $this, 'sanitize_indexable_post_types' ]
+			]
+		);
+
+		register_setting(
+			'nuclia_settings',
+			'nuclia_taxonomy_label_map',
+			[
+				'type' => 'array',
+				'sanitize_callback' => [ $this, 'sanitize_taxonomy_label_map' ]
 			]
 		);
 	}
@@ -353,6 +371,124 @@ class Nuclia_Admin_Page_Settings {
 </div>
 <?php
 		endif;
+	}
+
+	/**
+	 * Taxonomy label mapping callback.
+	 *
+	 * @since 1.2.0
+	 */
+	public function taxonomy_label_map_callback(): void {
+		$settings = $this->plugin->get_settings();
+		$mapping = $settings->get_taxonomy_label_map();
+		$labelsets = $this->plugin->get_api()->get_labelsets();
+
+		$taxonomies = get_taxonomies(
+			[
+				'public' => true,
+			],
+			'objects'
+		);
+
+		if ( empty( $taxonomies ) ) {
+			echo '<p>' . esc_html__( 'No public taxonomies available for mapping.', 'progress-agentic-rag' ) . '</p>';
+			return;
+		}
+
+		echo '<p class="description">' . esc_html__( 'Map WordPress taxonomy terms to Nuclia labels. Labelset suggestions come from your Nuclia Knowledge Box.', 'progress-agentic-rag' ) . '</p>';
+
+		$mapped_taxonomies = array_keys( $mapping );
+
+		echo '<div style="margin: 10px 0;">';
+		echo '<label for="nuclia_add_taxonomy_select">' . esc_html__( 'Add taxonomy mapping', 'progress-agentic-rag' ) . ':</label> ';
+		echo '<select id="nuclia_add_taxonomy_select" class="regular-text">';
+		echo '<option value="">' . esc_html__( 'Select a taxonomy', 'progress-agentic-rag' ) . '</option>';
+		foreach ( $taxonomies as $taxonomy ) {
+			if ( in_array( $taxonomy->name, $mapped_taxonomies, true ) ) {
+				continue;
+			}
+			echo '<option value="' . esc_attr( $taxonomy->name ) . '">' . esc_html( $taxonomy->labels->name ) . '</option>';
+		}
+		echo '</select> ';
+		echo '<button type="button" class="button nuclia-add-mapping">' . esc_html__( 'Add mapping', 'progress-agentic-rag' ) . '</button>';
+		echo '</div>';
+
+		echo '<div id="nuclia-mapping-container">';
+
+		foreach ( $mapping as $taxonomy_key => $config ) {
+			if ( ! isset( $taxonomies[ $taxonomy_key ] ) ) {
+				continue;
+			}
+
+			$taxonomy = $taxonomies[ $taxonomy_key ];
+			$taxonomy_labelset = $config['labelset'] ?? '';
+			$term_map = $config['terms'] ?? [];
+
+			echo '<div class="nuclia-mapping-block" data-taxonomy="' . esc_attr( $taxonomy_key ) . '" style="margin-top: 15px; padding: 10px; background: #fff; border: 1px solid #dcdcde;">';
+			echo '<div style="display: flex; align-items: center; justify-content: space-between;">';
+			echo '<div>';
+			echo '<h4 style="margin: 0 0 8px 0;">' . esc_html( $taxonomy->labels->name ) . '</h4>';
+			echo '<p style="margin: 0 0 8px 0;">' . esc_html( $taxonomy->name ) . '</p>';
+			echo '</div>';
+			echo '<button type="button" class="button link-delete nuclia-remove-mapping">' . esc_html__( 'Remove', 'progress-agentic-rag' ) . '</button>';
+			echo '</div>';
+
+			echo '<label for="nuclia_labelset_' . esc_attr( $taxonomy_key ) . '">';
+			echo esc_html__( 'Labelset', 'progress-agentic-rag' ) . ':</label> ';
+			echo '<select class="regular-text nuclia-labelset-select" data-taxonomy="' . esc_attr( $taxonomy_key ) . '" id="nuclia_labelset_' . esc_attr( $taxonomy_key ) . '" ';
+			echo 'name="nuclia_taxonomy_label_map[' . esc_attr( $taxonomy_key ) . '][labelset]">';
+			echo '<option value="">' . esc_html__( 'Select a labelset', 'progress-agentic-rag' ) . '</option>';
+			foreach ( $labelsets as $labelset ) {
+				$selected = ( $taxonomy_labelset === $labelset ) ? 'selected="selected"' : '';
+				echo '<option value="' . esc_attr( $labelset ) . '" ' . $selected . '>' . esc_html( $labelset ) . '</option>';
+			}
+			echo '</select>';
+
+			if ( empty( $labelsets ) ) {
+				echo '<p style="margin: 8px 0 0 0;">' . esc_html__( 'No labelsets available. Check your Nuclia credentials.', 'progress-agentic-rag' ) . '</p>';
+			}
+
+			$terms = get_terms(
+				[
+					'taxonomy' => $taxonomy_key,
+					'hide_empty' => false,
+				]
+			);
+
+			if ( empty( $terms ) || is_wp_error( $terms ) ) {
+				echo '<p style="margin: 8px 0 0 0;">' . esc_html__( 'No terms available for this taxonomy.', 'progress-agentic-rag' ) . '</p>';
+				echo '</div>';
+				continue;
+			}
+
+			$labels = $this->plugin->get_api()->get_labelset_labels( (string) $taxonomy_labelset );
+			echo '<table class="widefat striped" style="margin-top: 10px;">';
+			echo '<thead><tr><th>' . esc_html__( 'Term', 'progress-agentic-rag' ) . '</th><th>' . esc_html__( 'Nuclia label', 'progress-agentic-rag' ) . '</th></tr></thead>';
+			echo '<tbody>';
+
+			foreach ( $terms as $term ) {
+				$term_label = $term_map[ $term->term_id ] ?? '';
+				echo '<tr>';
+				echo '<td>' . esc_html( $term->name ) . '</td>';
+				echo '<td><select class="regular-text nuclia-label-select" data-taxonomy="' . esc_attr( $taxonomy_key ) . '" ';
+				echo 'name="nuclia_taxonomy_label_map[' . esc_attr( $taxonomy_key ) . '][terms][' . esc_attr( $term->term_id ) . ']">';
+				echo '<option value="">' . esc_html__( 'Select a label', 'progress-agentic-rag' ) . '</option>';
+				foreach ( $labels as $label ) {
+					$selected = ( $term_label === $label ) ? 'selected="selected"' : '';
+					echo '<option value="' . esc_attr( $label ) . '" ' . $selected . '>' . esc_html( $label ) . '</option>';
+				}
+				echo '</select></td>';
+				echo '</tr>';
+			}
+
+			echo '</tbody></table>';
+			if ( $taxonomy_labelset !== '' && empty( $labels ) ) {
+				echo '<p style="margin: 8px 0 0 0; color: #d63638;">' . esc_html__( 'No labels found for the selected labelset. Please verify the labelset exists in Nuclia and reload the page.', 'progress-agentic-rag' ) . '</p>';
+			}
+			echo '</div>';
+		}
+
+		echo '</div>';
 	}
 
 	/**
@@ -630,6 +766,57 @@ class Nuclia_Admin_Page_Settings {
 
 		return $value;
 	}
+
+	/**
+	 * Sanitize taxonomy label map.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array|mixed $value
+	 *
+	 * @return array
+	 */
+	public function sanitize_taxonomy_label_map( mixed $value ): array {
+		if ( ! is_array( $value ) ) {
+			return [];
+		}
+
+		$sanitized = [];
+
+		foreach ( $value as $taxonomy => $config ) {
+			$taxonomy = sanitize_key( (string) $taxonomy );
+			if ( ! taxonomy_exists( $taxonomy ) || ! is_array( $config ) ) {
+				continue;
+			}
+
+			$labelset = isset( $config['labelset'] ) ? sanitize_text_field( (string) $config['labelset'] ) : '';
+			$terms = is_array( $config['terms'] ?? null ) ? $config['terms'] : [];
+			$clean_terms = [];
+
+			foreach ( $terms as $term_id => $label ) {
+				$term_id = (int) $term_id;
+				if ( $term_id <= 0 || ! term_exists( $term_id, $taxonomy ) ) {
+					continue;
+				}
+
+				$label = sanitize_text_field( (string) $label );
+				if ( $label === '' ) {
+					continue;
+				}
+
+				$clean_terms[ $term_id ] = $label;
+			}
+
+			if ( $labelset !== '' && ! empty( $clean_terms ) ) {
+				$sanitized[ $taxonomy ] = [
+					'labelset' => $labelset,
+					'terms' => $clean_terms,
+				];
+			}
+		}
+
+		return $sanitized;
+	}
 	
 	/**
 	 * Assert that the credentials are valid.
@@ -844,6 +1031,29 @@ class Nuclia_Admin_Page_Settings {
 			'status'           => $status,
 			'per_type_pending' => $per_type_pending,
 		] );
+	}
+
+	/**
+	 * AJAX handler to get labelset labels.
+	 *
+	 * @since 1.2.0
+	 */
+	public function ajax_get_labelset_labels(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( 'Unauthorized', 403 );
+		}
+
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'nuclia_labels_nonce' ) ) {
+			wp_send_json_error( 'Invalid nonce', 403 );
+		}
+
+		$labelset = sanitize_text_field( $_POST['labelset'] ?? '' );
+		if ( $labelset === '' ) {
+			wp_send_json_success( [ 'labels' => [] ] );
+		}
+
+		$labels = $this->plugin->get_api()->get_labelset_labels( $labelset );
+		wp_send_json_success( [ 'labels' => $labels ] );
 	}
 	
 }

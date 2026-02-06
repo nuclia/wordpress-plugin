@@ -130,12 +130,12 @@ add_action( 'init', 'nuclia_load_textdomain' );
  */
 function nuclia_log( string $notice ): void {
 	if ( true === WP_DEBUG ) {
-		error_log("[PROGRESS AGENTIC RAG]: " . $notice."\n" );
+		error_log("[PROGRESS AGENTIC RAG]: $notice\n" );
 	};
 }
 
 function nuclia_error_log( string $notice ): void {
-	error_log("[PROGRESS AGENTIC RAG]: " . $notice."\n" );
+	error_log("[PROGRESS AGENTIC RAG]: $notice\n" );
 }
 
 // load plugin if requirements are met or display admin notice

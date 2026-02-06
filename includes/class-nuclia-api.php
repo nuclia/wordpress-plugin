@@ -83,6 +83,13 @@ class Nuclia_API {
 			],
 			'created' => gmdate('Y-m-d', strtotime( $post->post_date_gmt )).'T'.gmdate('H:i:s', strtotime( $post->post_date_gmt )).'Z'
 		];
+
+		$taxonomy_label_map = $this->settings->get_taxonomy_label_map();
+		if ( ! empty( $taxonomy_label_map ) ) {
+			$body['usermetadata'] = [
+				'classifications' => $this->build_taxonomy_classifications( $post ),
+			];
+		}
 		
 		// for attachments
 		if ( $post->post_type == 'attachment' ) :
@@ -92,15 +99,6 @@ class Nuclia_API {
 			$body = [
 				...$body,
 				'icon' => $mime_type,
-				// 'files' => [ 
-				// 	$post->post_name => [
-				// 		'file' => [
-				// 			'filename' => $filename,
-				// 			'content_type' => $mime_type,
-				// 			'payload' => base64_encode( file_get_contents( $file ) )
-				// 		]
-				// 	]
-				// ]
 			];
 			
 		// other post types
@@ -119,6 +117,313 @@ class Nuclia_API {
 		endif;
 		
 		return json_encode( $body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+	}
+
+	/**
+	 * Get available Nuclia labelsets (cached).
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array
+	 */
+	public function get_labelsets(): array {
+		$cache = $this->settings->get_labelsets_cache();
+		$cached_labelsets = $cache['labelsets'] ?? [];
+		$fetched_at = (int) ( $cache['fetched_at'] ?? 0 );
+		$ttl = defined( 'HOUR_IN_SECONDS' ) ? 6 * HOUR_IN_SECONDS : 21600;
+
+		if ( ! empty( $cached_labelsets ) && $fetched_at > 0 && ( time() - $fetched_at ) < $ttl ) {
+			return $cached_labelsets;
+		}
+
+		if ( empty( $this->settings->get_zone() ) || empty( $this->settings->get_kbid() ) || empty( $this->settings->get_token() ) ) {
+			return $cached_labelsets;
+		}
+
+		$uri = "{$this->endpoint}labelsets";
+		$args = [
+			'method' => 'GET',
+			'headers' => [
+				'X-NUCLIA-SERVICEACCOUNT' => 'Bearer ' . $this->settings->get_token(),
+			],
+		];
+
+		$response = wp_remote_get( $uri, $args );
+		if ( is_wp_error( $response ) ) {
+			nuclia_error_log( 'Failed to fetch labelsets: ' . $response->get_error_message() );
+			return $cached_labelsets;
+		}
+
+		$response_code = wp_remote_retrieve_response_code( $response );
+		if ( $response_code !== 200 ) {
+			nuclia_error_log( 'Failed to fetch labelsets, response code: ' . $response_code );
+			return $cached_labelsets;
+		}
+
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		$normalized = $this->normalize_labelsets_response( $data );
+		$labelsets = $normalized['labelsets'];
+		$labels_map = $normalized['labels'];
+		if ( ! empty( $labelsets ) ) {
+			if ( ! empty( $labels_map ) ) {
+				$this->settings->set_labelsets_cache_with_labels( $labelsets, $labels_map );
+			} else {
+				$this->settings->set_labelsets_cache( $labelsets );
+			}
+			return $labelsets;
+		}
+
+		return $cached_labelsets;
+	}
+
+	/**
+	 * Get labels for a labelset (cached).
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $labelset
+	 * @return array
+	 */
+	public function get_labelset_labels( string $labelset ): array {
+		$labelset = trim( $labelset );
+		if ( $labelset === '' ) {
+			return [];
+		}
+
+		$cache = $this->settings->get_labelsets_cache();
+		$fetched_at = (int) ( $cache['fetched_at'] ?? 0 );
+		$ttl = defined( 'HOUR_IN_SECONDS' ) ? 6 * HOUR_IN_SECONDS : 21600;
+		$cached_labels = $this->settings->get_labelset_labels_cache( $labelset );
+
+		if ( ! empty( $cached_labels ) && $fetched_at > 0 && ( time() - $fetched_at ) < $ttl ) {
+			return $cached_labels;
+		}
+
+		if ( empty( $this->settings->get_zone() ) || empty( $this->settings->get_kbid() ) || empty( $this->settings->get_token() ) ) {
+			return $cached_labels;
+		}
+
+		$labels = $this->fetch_labelset_labels( $labelset );
+		if ( ! empty( $labels ) ) {
+			$this->settings->set_labelset_labels_cache( $labelset, $labels );
+			return $labels;
+		}
+
+		return $cached_labels;
+	}
+
+	/**
+	 * Normalize labelset list from API response.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param mixed $data
+	 * @return array
+	 */
+	private function normalize_labelsets_response( mixed $data ): array {
+		if ( ! is_array( $data ) ) {
+			return [
+				'labelsets' => [],
+				'labels' => [],
+			];
+		}
+
+		$labelsets = [];
+		$labels_map = [];
+		$payload = $data['labelsets'] ?? $data;
+
+		if ( is_array( $payload ) ) {
+			$is_assoc = array_keys( $payload ) !== range( 0, count( $payload ) - 1 );
+			if ( $is_assoc ) {
+				$labelsets = array_keys( $payload );
+				foreach ( $payload as $labelset => $entry ) {
+					$labels = $this->normalize_labelset_labels( $entry );
+					if ( ! empty( $labels ) ) {
+						$labels_map[ (string) $labelset ] = $labels;
+					}
+				}
+			} else {
+				foreach ( $payload as $entry ) {
+					if ( is_string( $entry ) ) {
+						$labelsets[] = $entry;
+					} elseif ( is_array( $entry ) ) {
+						if ( isset( $entry['labelset'] ) ) {
+							$labelset_name = (string) $entry['labelset'];
+							$labelsets[] = $labelset_name;
+							$labels = $this->normalize_labelset_labels( $entry );
+							if ( ! empty( $labels ) ) {
+								$labels_map[ $labelset_name ] = $labels;
+							}
+						} elseif ( isset( $entry['name'] ) ) {
+							$labelsets[] = (string) $entry['name'];
+						} elseif ( isset( $entry['id'] ) ) {
+							$labelsets[] = (string) $entry['id'];
+						}
+					}
+				}
+			}
+		}
+
+		$labelsets = array_filter( array_map( 'sanitize_text_field', $labelsets ) );
+		return [
+			'labelsets' => array_values( array_unique( $labelsets ) ),
+			'labels' => $labels_map,
+		];
+	}
+
+	/**
+	 * Fetch labels for a labelset from the API.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $labelset
+	 * @return array
+	 */
+	private function fetch_labelset_labels( string $labelset ): array {
+		$labelset = rawurlencode( $labelset );
+		$candidates = [
+			"{$this->endpoint}labelsets/{$labelset}",
+			"{$this->endpoint}labelset/{$labelset}",
+			"{$this->endpoint}labelsets/{$labelset}/labels",
+			"{$this->endpoint}labelset/{$labelset}/labels",
+		];
+
+		foreach ( $candidates as $uri ) {
+			$args = [
+				'method' => 'GET',
+				'headers' => [
+					'X-NUCLIA-SERVICEACCOUNT' => 'Bearer ' . $this->settings->get_token(),
+				],
+			];
+
+			$response = wp_remote_get( $uri, $args );
+			if ( is_wp_error( $response ) ) {
+				continue;
+			}
+
+			$response_code = wp_remote_retrieve_response_code( $response );
+			if ( $response_code !== 200 ) {
+				continue;
+			}
+
+			$data = json_decode( wp_remote_retrieve_body( $response ), true );
+			$labels = $this->normalize_labelset_labels( $data );
+			if ( ! empty( $labels ) ) {
+				return $labels;
+			}
+		}
+
+		return [];
+	}
+
+	/**
+	 * Normalize label list for a labelset response.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param mixed $data
+	 * @return array
+	 */
+	private function normalize_labelset_labels( mixed $data ): array {
+		if ( ! is_array( $data ) ) {
+			return [];
+		}
+
+		$labels = [];
+		$payload = $data['labels'] ?? $data['labelset'] ?? $data;
+
+		if ( is_array( $payload ) ) {
+			$is_assoc = array_keys( $payload ) !== range( 0, count( $payload ) - 1 );
+			if ( $is_assoc ) {
+				$labels = array_keys( $payload );
+			} else {
+				foreach ( $payload as $entry ) {
+					if ( is_string( $entry ) ) {
+						$labels[] = $entry;
+					} elseif ( is_array( $entry ) ) {
+						if ( isset( $entry['title'] ) ) {
+							$labels[] = (string) $entry['title'];
+						} elseif ( isset( $entry['text'] ) ) {
+							$labels[] = (string) $entry['text'];
+						} elseif ( isset( $entry['uri'] ) ) {
+							$labels[] = (string) $entry['uri'];
+						} elseif ( isset( $entry['related'] ) && is_string( $entry['related'] ) ) {
+							$labels[] = $entry['related'];
+						} elseif ( isset( $entry['label'] ) ) {
+							$labels[] = (string) $entry['label'];
+						} elseif ( isset( $entry['name'] ) ) {
+							$labels[] = (string) $entry['name'];
+						} elseif ( isset( $entry['id'] ) ) {
+							$labels[] = (string) $entry['id'];
+						}
+					}
+				}
+			}
+		}
+
+		$labels = array_filter( array_map( 'sanitize_text_field', $labels ) );
+		return array_values( array_unique( $labels ) );
+	}
+
+	/**
+	 * Build classifications based on taxonomy mapping.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param WP_Post $post
+	 *
+	 * @return array
+	 */
+	private function build_taxonomy_classifications( WP_Post $post ): array {
+		$taxonomy_label_map = $this->settings->get_taxonomy_label_map();
+		if ( empty( $taxonomy_label_map ) ) {
+			return [];
+		}
+
+		$classifications = [];
+
+		foreach ( $taxonomy_label_map as $taxonomy => $config ) {
+			if ( ! taxonomy_exists( $taxonomy ) || ! is_array( $config ) ) {
+				continue;
+			}
+
+			$labelset = isset( $config['labelset'] ) ? trim( (string) $config['labelset'] ) : '';
+			$term_map = is_array( $config['terms'] ?? null ) ? $config['terms'] : [];
+
+			if ( $labelset === '' || empty( $term_map ) ) {
+				continue;
+			}
+
+			$term_ids = wp_get_post_terms( $post->ID, $taxonomy, [ 'fields' => 'ids' ] );
+			if ( is_wp_error( $term_ids ) ) {
+				continue;
+			}
+
+			foreach ( $term_ids as $term_id ) {
+				$term_id = (int) $term_id;
+				if ( empty( $term_map[ $term_id ] ) ) {
+					continue;
+				}
+
+				$label = trim( (string) $term_map[ $term_id ] );
+				if ( $label === '' ) {
+					continue;
+				}
+
+				$classifications[] = [
+					'labelset' => $labelset,
+					'label' => $label
+				];
+			}
+		}
+
+		$unique = [];
+		foreach ( $classifications as $classification ) {
+			$key = $classification['labelset'] . '|' . $classification['label'];
+			$unique[ $key ] = $classification;
+		}
+
+		return array_values( $unique );
 	}
 
 	/**
