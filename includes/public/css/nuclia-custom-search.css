@@ -1,0 +1,158 @@
+.pl-nuclia-search-widget {
+  border: 1px solid #d9d9d9;
+  border-radius: 16px;
+  padding: 20px;
+  background: #ffffff;
+  font-family: Arial, sans-serif;
+ }
+
+ .pl-nuclia-search-header {
+  margin-bottom: 16px;
+  text-align: center;
+ }
+
+ .pl-nuclia-search-title {
+  margin: 0 0 6px;
+  font-size: 20px;
+ }
+
+ .pl-nuclia-search-subtitle {
+  margin: 0;
+  color: #555555;
+  font-size: 14px;
+ }
+
+ .pl-nuclia-search-controls {
+  display: grid;
+  gap: 16px;
+ }
+
+ .pl-nuclia-search-input {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+ }
+
+ .pl-nuclia-input {
+  flex: 1 1 240px;
+  min-width: 160px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #c9c9c9;
+ }
+
+ .pl-nuclia-button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  background: #0b5fff;
+  color: #ffffff;
+  cursor: pointer;
+ }
+
+ .pl-nuclia-button-secondary {
+  background: #f0f0f0;
+  color: #222222;
+ }
+
+ .pl-nuclia-search-config {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+ }
+
+ .pl-nuclia-label {
+  font-size: 13px;
+  color: #555555;
+ }
+
+ .pl-nuclia-select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #c9c9c9;
+ }
+
+ .pl-nuclia-config-status,
+ .pl-nuclia-search-status {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #777777;
+ }
+
+ .pl-nuclia-search-results {
+  margin-top: 20px;
+  display: grid;
+  gap: 20px;
+ }
+
+ .pl-nuclia-section-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+ }
+
+ .pl-nuclia-answer-text {
+  white-space: pre-wrap;
+  line-height: 1.6;
+ }
+
+ .pl-nuclia-footnote {
+  border: none;
+  background: #e7eefc;
+  color: #0b5fff;
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin: 0 2px;
+  cursor: pointer;
+  font-size: 12px;
+ }
+
+ .pl-nuclia-citations-list {
+  display: grid;
+  gap: 12px;
+ }
+
+ .pl-nuclia-citation-card {
+  border: 1px solid #e2e2e2;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fafafa;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+ }
+
+ .pl-nuclia-citation-card.is-active {
+  border-color: #0b5fff;
+  box-shadow: 0 0 0 3px rgba(11, 95, 255, 0.15);
+ }
+
+ .pl-nuclia-citation-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+ }
+
+ .pl-nuclia-citation-meta {
+  font-size: 12px;
+  color: #666666;
+  margin-bottom: 6px;
+ }
+
+ .pl-nuclia-citation-snippet {
+  font-size: 13px;
+  color: #333333;
+  margin-bottom: 8px;
+ }
+
+ .pl-nuclia-citation-link {
+  font-size: 12px;
+  color: #0b5fff;
+  text-decoration: none;
+ }
+
+ .pl-nuclia-muted {
+  color: #777777;
+  font-size: 13px;
+ }
+
+ .pl-nuclia-error {
+  color: #c4001a;
+  font-size: 13px;
+ }

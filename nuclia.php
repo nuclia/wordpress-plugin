@@ -145,6 +145,7 @@ if ( nuclia_php_version_check() && nuclia_wp_version_check() ) {
 	
 	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-widget.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/nuclia-searchbox-shortcode.php';
+	require_once PROGRESS_NUCLIA_PATH . 'includes/nuclia-custom-search-shortcode.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-api.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-settings.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-background-processor.php';
