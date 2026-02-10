@@ -13,10 +13,34 @@ Improve search on your site with AI-powered capabilities.
 - Push your content to Progress Agentic RAG for indexing
 - Progress Agentic RAG searchbox widget
 - Progress Agentic RAG searchbox shortcode
+- Widget requests are proxied through the site REST API using the configured `nuclia_token`
+- Shortcode requests are direct by default; enable proxying with `proxy="true"` in the shortcode
 
 This plugin requires an Agentic RAG account. You can sign up for a free trial at [Progress Agentic RAG](https://rag.progress.cloud).
 
 Only published posts (not private) are indexed. If a post's status changes, it will be automatically unindexed.
+
+### Shortcode usage
+
+Use:
+
+`[agentic_rag_searchbox]`
+
+- `zone` is optional. If omitted, the plugin uses the Zone configured in plugin settings.
+- `kbid` is optional. If omitted, the plugin uses the Knowledge Box ID configured in plugin settings.
+- `features` is optional (default: `navigateToLink`).
+- `proxy` is optional (`true` routes through the WordPress proxy, default is direct requests).
+- `show_config` is optional (default: `false`). Set `show_config="true"` to display the search configuration dropdown.
+
+Examples:
+
+- `[agentic_rag_searchbox]`
+- `[agentic_rag_searchbox features="navigateToLink,suggestions"]`
+- `[agentic_rag_searchbox proxy="true"]`
+- `[agentic_rag_searchbox show_config="true"]` (show search configuration selector)
+- `[agentic_rag_searchbox zone="europe-1"]` (override saved Zone)
+- `[agentic_rag_searchbox kbid="override-kbid"]` (override saved KB ID)
+- `[agentic_rag_searchbox zone="europe-1" kbid="override-kbid"]` (override both)
 
 ### About Progress Agentic RAG
 

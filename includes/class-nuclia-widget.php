@@ -70,11 +70,14 @@ class Nuclia_Searchbox_Widget extends \WP_Widget {
             $features = ( ! empty( $instance['features'] ) && is_array( $instance['features'] ) )
                     ? esc_attr( implode( ',', $instance['features'] ) )
                     : '';
+			$backend = esc_url( nuclia_proxy_url( $zone ) );
 
             echo '<nuclia-search-bar';
             echo ' knowledgebox="' . $kbid . '"';
             echo ' zone="' . $zone . '"';
             echo $features !== '' ? ' features="' . $features . '"' : '';
+			echo ' backend="' . $backend . '"';
+			echo ' proxy="true"';
             echo '></nuclia-search-bar>';
             echo '<nuclia-search-results></nuclia-search-results>';
         else :

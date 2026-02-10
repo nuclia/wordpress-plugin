@@ -145,6 +145,7 @@ if ( nuclia_php_version_check() && nuclia_wp_version_check() ) {
 	
 	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-widget.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/nuclia-searchbox-shortcode.php';
+	require_once PROGRESS_NUCLIA_PATH . 'includes/nuclia-proxy-rest.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-api.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-settings.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-background-processor.php';
@@ -195,11 +196,11 @@ class Nuclia_Plugin_Factory {
 }
 
 function agentic_rag_for_wp_install() {
-    global $wpdb;
-    require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
-    $charset_collate = $wpdb->get_charset_collate();
-    $table_name = $wpdb->prefix . "agentic_rag_for_wp";
-    $sql = "CREATE TABLE $table_name (
+	global $wpdb;
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	$charset_collate = $wpdb->get_charset_collate();
+	$table_name = $wpdb->prefix . 'agentic_rag_for_wp';
+	$sql = "CREATE TABLE $table_name (
         id mediumint(9) NOT NULL AUTO_INCREMENT,
         post_id mediumint(9) NOT NULL,
         nuclia_rid varchar(255) NOT NULL,
@@ -209,6 +210,12 @@ function agentic_rag_for_wp_install() {
         INDEX idx_nuclia_rid (nuclia_rid)
     ) $charset_collate;";
 	dbDelta( $sql );
+
+	// Register path-only proxy rewrite rule and flush so /nuclia-proxy/{zone} works.
+	if ( function_exists( 'nuclia_proxy_add_rewrite_rules' ) ) {
+		nuclia_proxy_add_rewrite_rules();
+		flush_rewrite_rules();
+	}
 }
 
 register_activation_hook( __FILE__, 'agentic_rag_for_wp_install' );

@@ -312,7 +312,7 @@ class Nuclia_Admin_Page_Settings {
                     &nbsp;
                     <span class="nuclia-pending-status" data-post-type="<?php echo esc_attr( $post_type ); ?>">
                         <?php if ( $pending_for_type > 0 ) : ?>
-                            <span class="spinner is-active" style="float: none; margin: 0 5px;"></span>
+                            <span class="spinner is-active pl-nuclia-inline-spinner"></span>
                             <span class="nuclia-pending-count"><?php printf( esc_html__( '%d pending', 'progress-agentic-rag' ), $pending_for_type ); ?></span>
                         <?php endif; ?>
                     </span>
@@ -346,17 +346,17 @@ class Nuclia_Admin_Page_Settings {
 			$total_running = $bg_status['running'];
 			$total_failed = $bg_status['failed'];
 		?>
-<div class="nuclia-overall-status" style="margin-top: 15px; padding: 10px; background: #f0f0f1; border-left: 4px solid #2271b1;">
-    <p style="margin: 0;">
+<div class="nuclia-overall-status">
+    <p class="nuclia-overall-status__stats">
         <strong><?php esc_html_e( 'Background Indexing Status:', 'progress-agentic-rag' ); ?></strong>
         <span id="nuclia-status-pending"><?php printf( esc_html__( '%d pending', 'progress-agentic-rag' ), $total_pending ); ?></span> |
         <span id="nuclia-status-running"><?php printf( esc_html__( '%d running', 'progress-agentic-rag' ), $total_running ); ?></span>
         <?php if ( $total_failed > 0 ) : ?>
-            | <span id="nuclia-status-failed" style="color: #d63638;"><?php printf( esc_html__( '%d failed', 'progress-agentic-rag' ), $total_failed ); ?></span>
+            | <span id="nuclia-status-failed" class="pl-nuclia-error"><?php printf( esc_html__( '%d failed', 'progress-agentic-rag' ), $total_failed ); ?></span>
         <?php endif; ?>
     </p>
     <?php if ( $total_pending > 0 || $total_running > 0 ) : ?>
-        <p style="margin: 10px 0 0 0;">
+        <p class="nuclia-overall-status__actions">
             <button class="nuclia-cancel-all-button button" type="button">
                 <?php esc_html_e( 'Cancel all pending jobs', 'progress-agentic-rag' ); ?>
             </button>
@@ -364,8 +364,8 @@ class Nuclia_Admin_Page_Settings {
     <?php endif; ?>
 </div>
 
-<div class="notice notice-success" style="margin-top: 15px;">
-    <p><strong><span class="dashicons dashicons-saved" style="color:#090;"></span>
+<div class="notice notice-success nuclia-connected-notice">
+    <p><strong><span class="dashicons dashicons-saved"></span>
         <?php esc_html_e( 'API connected. Indexing runs automatically in the background.', 'progress-agentic-rag' ); ?>
     </strong></p>
 </div>
@@ -399,7 +399,7 @@ class Nuclia_Admin_Page_Settings {
 
 		$mapped_taxonomies = array_keys( $mapping );
 
-		echo '<div style="margin: 10px 0;">';
+		echo '<div class="pl-nuclia-section-card">';
 		echo '<label for="nuclia_add_taxonomy_select">' . esc_html__( 'Add taxonomy mapping', 'progress-agentic-rag' ) . ':</label> ';
 		echo '<select id="nuclia_add_taxonomy_select" class="regular-text">';
 		echo '<option value="">' . esc_html__( 'Select a taxonomy', 'progress-agentic-rag' ) . '</option>';
@@ -427,11 +427,11 @@ class Nuclia_Admin_Page_Settings {
 			$fallback_labelset = $fallback_config['labelset'] ?? '';
 			$fallback_labels = is_array( $fallback_config['labels'] ?? null ) ? $fallback_config['labels'] : [];
 
-			echo '<div class="nuclia-mapping-block" data-taxonomy="' . esc_attr( $taxonomy_key ) . '" style="margin-top: 15px; padding: 10px; background: #fff; border: 1px solid #dcdcde;">';
-			echo '<div style="display: flex; align-items: center; justify-content: space-between;">';
+			echo '<div class="nuclia-mapping-block pl-nuclia-section-card" data-taxonomy="' . esc_attr( $taxonomy_key ) . '">';
+			echo '<div class="pl-nuclia-flex-between">';
 			echo '<div>';
-			echo '<h4 style="margin: 0 0 8px 0;">' . esc_html( $taxonomy->labels->name ) . '</h4>';
-			echo '<p style="margin: 0 0 8px 0;">' . esc_html( $taxonomy->name ) . '</p>';
+			echo '<h4 class="pl-nuclia-fallback-title">' . esc_html( $taxonomy->labels->name ) . '</h4>';
+			echo '<p class="pl-nuclia-muted">' . esc_html( $taxonomy->name ) . '</p>';
 			echo '</div>';
 			echo '<button type="button" class="button link-delete nuclia-remove-mapping">' . esc_html__( 'Remove', 'progress-agentic-rag' ) . '</button>';
 			echo '</div>';
@@ -448,7 +448,7 @@ class Nuclia_Admin_Page_Settings {
 			echo '</select>';
 
 			if ( empty( $labelsets ) ) {
-				echo '<p style="margin: 8px 0 0 0;">' . esc_html__( 'No labelsets available. Check your Nuclia credentials.', 'progress-agentic-rag' ) . '</p>';
+				echo '<p class="pl-nuclia-muted">' . esc_html__( 'No labelsets available. Check your Nuclia credentials.', 'progress-agentic-rag' ) . '</p>';
 			}
 
 			$terms = get_terms(
@@ -459,10 +459,10 @@ class Nuclia_Admin_Page_Settings {
 			);
 
 			if ( empty( $terms ) || is_wp_error( $terms ) ) {
-				echo '<p style="margin: 8px 0 0 0;">' . esc_html__( 'No terms available for this taxonomy.', 'progress-agentic-rag' ) . '</p>';
+				echo '<p class="pl-nuclia-muted">' . esc_html__( 'No terms available for this taxonomy.', 'progress-agentic-rag' ) . '</p>';
 			} else {
 				$labels = $this->plugin->get_api()->get_labelset_labels( (string) $taxonomy_labelset );
-				echo '<table class="widefat striped" style="margin-top: 10px;">';
+				echo '<table class="widefat striped pl-nuclia-label-table">';
 				echo '<thead><tr><th>' . esc_html__( 'Term', 'progress-agentic-rag' ) . '</th><th>' . esc_html__( 'Nuclia labels', 'progress-agentic-rag' ) . '</th></tr></thead>';
 				echo '<tbody>';
 
@@ -477,7 +477,7 @@ class Nuclia_Admin_Page_Settings {
 					echo '<div class="nuclia-label-checkboxes" data-taxonomy="' . esc_attr( $taxonomy_key ) . '" data-term-id="' . esc_attr( $term->term_id ) . '">';
 					foreach ( $labels as $label ) {
 						$checked = in_array( $label, $term_labels, true ) ? 'checked="checked"' : '';
-						echo '<label style="display: block; margin: 2px 0;">';
+						echo '<label class="pl-nuclia-checkbox-row">';
 						echo '<input type="checkbox" class="nuclia-label-checkbox" value="' . esc_attr( $label ) . '" ' . $checked . ' ';
 						echo 'name="nuclia_taxonomy_label_map[' . esc_attr( $taxonomy_key ) . '][terms][' . esc_attr( $term->term_id ) . '][]"> ';
 						echo esc_html( $label ) . '</label>';
@@ -492,12 +492,12 @@ class Nuclia_Admin_Page_Settings {
 
 				echo '</tbody></table>';
 				if ( $taxonomy_labelset !== '' && empty( $labels ) ) {
-					echo '<p style="margin: 8px 0 0 0; color: #d63638;">' . esc_html__( 'No labels found for the selected labelset. Please verify the labelset exists in Nuclia and reload the page.', 'progress-agentic-rag' ) . '</p>';
+					echo '<p class="pl-nuclia-muted pl-nuclia-error">' . esc_html__( 'No labels found for the selected labelset. Please verify the labelset exists in Nuclia and reload the page.', 'progress-agentic-rag' ) . '</p>';
 				}
 			}
 
-			echo '<div class="nuclia-fallback-section" style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #dcdcde;">';
-			echo '<p style="margin: 0 0 6px 0;"><strong>' . esc_html__( 'Fallback labels (when no terms assigned)', 'progress-agentic-rag' ) . '</strong></p>';
+			echo '<div class="nuclia-fallback-section">';
+			echo '<p class="pl-nuclia-fallback-title"><strong>' . esc_html__( 'Fallback labels (when no terms assigned)', 'progress-agentic-rag' ) . '</strong></p>';
 			echo '<label for="nuclia_fallback_labelset_' . esc_attr( $taxonomy_key ) . '">';
 			echo esc_html__( 'Labelset', 'progress-agentic-rag' ) . ':</label> ';
 			echo '<select class="regular-text nuclia-fallback-labelset-select" data-taxonomy="' . esc_attr( $taxonomy_key ) . '" id="nuclia_fallback_labelset_' . esc_attr( $taxonomy_key ) . '" ';
@@ -510,7 +510,7 @@ class Nuclia_Admin_Page_Settings {
 			echo '</select>';
 
 			$fallback_available_labels = $fallback_labelset !== '' ? $this->plugin->get_api()->get_labelset_labels( (string) $fallback_labelset ) : [];
-			echo '<div class="nuclia-fallback-labels" data-taxonomy="' . esc_attr( $taxonomy_key ) . '" style="margin-top: 8px;">';
+			echo '<div class="nuclia-fallback-labels pl-nuclia-muted" data-taxonomy="' . esc_attr( $taxonomy_key ) . '">';
 			if ( $fallback_labelset === '' ) {
 				echo '<em>' . esc_html__( 'Select a labelset to load labels.', 'progress-agentic-rag' ) . '</em>';
 			} elseif ( empty( $fallback_available_labels ) ) {
@@ -518,7 +518,7 @@ class Nuclia_Admin_Page_Settings {
 			} else {
 				foreach ( $fallback_available_labels as $label ) {
 					$checked = in_array( $label, $fallback_labels, true ) ? 'checked="checked"' : '';
-					echo '<label style="display: block; margin: 2px 0;">';
+					echo '<label class="pl-nuclia-checkbox-row">';
 					echo '<input type="checkbox" class="nuclia-fallback-label-checkbox" value="' . esc_attr( $label ) . '" ' . $checked . ' ';
 					echo 'name="nuclia_taxonomy_label_map[' . esc_attr( $taxonomy_key ) . '][fallback][labels][]"> ';
 					echo esc_html( $label ) . '</label>';
@@ -990,24 +990,124 @@ class Nuclia_Admin_Page_Settings {
 	 * @since  1.0.0
 	 */
 	public function print_settings_section(): void {
-		echo '<p>' . wp_kses_post( sprintf( __('The zone, token, knowledge base id can be found or configured at your Progress Agentic RAG cloud account. Please sign up at %1s and sign in at %2s.', 'progress-agentic-rag'),
-			'<a href="https://rag.progress.cloud/user/signup" target="blank">https://rag.progress.cloud/user/signup</a>',
-            '<a href="https://rag.progress.cloud/user/login" target="blank">https://rag.progress.cloud/user/login</a>'
-        )) . '</p>';
-		echo '<p>' . esc_html__( 'Once you provide your Progress Agentic RAG Zone and API key, this plugin will be able to securely communicate with Progress Agentic RAG servers.', 'progress-agentic-rag' ) . ' ' . esc_html__( 'We ensure your information is correct by testing them against the Progress Agentic RAG servers upon save.', 'progress-agentic-rag' ) . '</p>';
+		$features_all = 'navigateToLink,answers,rephrase,filter,suggestions,autocompleteFromNERs,llmCitations,hideResults';
 		$settings = $this->plugin->get_settings();
 		$zone = $settings->get_zone() ?: 'your-zone';
 		$kbid = $settings->get_kbid() ?: 'your-kbid';
-		echo '<h3>Widget</h3>';
-		echo '<p>'.esc_html__( 'You can put the Progress Agentic RAG Searchbox widget in any widget area.', 'progress-agentic-rag').'</p>';
-		echo '<h3>'.esc_html__('Shortcode', 'progress-agentic-rag').'</h3>';
-		echo '<p>';
-		echo esc_html__( 'Copy and paste this shortcode into any content. For the features, you can choose:', 'progress-agentic-rag').'<br>';
-		echo ' - "navigateToLink" : '. esc_html__("clicking on a result will open the original page rather than rendering it in the viewer." , 'progress-agentic-rag' ).'<br>';
-		echo ' - "permalink" : '. esc_html__("add extra parameters in URL allowing direct opening of a resource or search results." , 'progress-agentic-rag' ).'<br>';
-		echo ' - "suggestions" : '. esc_html__("suggest results while typing search query." , 'progress-agentic-rag' );
-		echo '</p>';
-		echo '<p><code>[agentic_rag_searchbox zone="'.$zone.'" kbid="'.$kbid.'" features="navigateToLink,permalink,suggestions"]</code></p>';
+
+		$shortcode_basic = sprintf(
+			'[agentic_rag_searchbox]'
+		);
+		$shortcode_full_features = sprintf(
+			'[agentic_rag_searchbox features="%1$s"]',
+			esc_attr( $features_all )
+		);
+		$shortcode_proxy = sprintf(
+			'[agentic_rag_searchbox features="%1$s" proxy="true"]',
+			esc_attr( $features_all )
+		);
+		$shortcode_show_config = sprintf(
+			'[agentic_rag_searchbox show_config="true"]'
+		);
+		$shortcode_custom_zone = sprintf(
+			'[agentic_rag_searchbox zone="%1$s"]',
+			esc_attr( $zone )
+		);
+		$shortcode_custom_kbid = sprintf(
+			'[agentic_rag_searchbox kbid="%1$s"]',
+			esc_attr( $kbid )
+		);
+		$shortcode_custom_zone_kbid = sprintf(
+			'[agentic_rag_searchbox zone="%1$s" kbid="%2$s"]',
+			esc_attr( $zone ),
+			esc_attr( $kbid )
+		);
+
+		echo '<style>
+			.pl-nuclia-docs{margin:16px 0 22px;border:1px solid #dcdcde;border-radius:10px;background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);overflow:hidden}
+			.pl-nuclia-docs__header{padding:16px 18px;border-bottom:1px solid #e6edf5;background:#f0f6fc}
+			.pl-nuclia-docs__title{margin:0;font-size:15px;font-weight:600}
+			.pl-nuclia-docs__subtitle{margin:8px 0 0;color:#50575e}
+			.pl-nuclia-docs__body{padding:16px 18px}
+			.pl-nuclia-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:0 0 14px}
+			.pl-nuclia-card{border:1px solid #dcdcde;border-radius:8px;background:#fff;padding:12px}
+			.pl-nuclia-card h4{margin:0 0 8px;font-size:13px}
+			.pl-nuclia-card p{margin:0 0 8px}
+			.pl-nuclia-meta-list{margin:0;padding-left:18px}
+			.pl-nuclia-meta-list li{margin:0 0 6px}
+			.pl-nuclia-features{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
+			.pl-nuclia-feature{display:inline-block;padding:2px 8px;border-radius:999px;background:#eff6ff;color:#1d4e89;border:1px solid #bfdbfe;font-size:12px;line-height:1.5}
+			.pl-nuclia-example-caption{margin:14px 0 6px;color:#344054;font-weight:600}
+			.pl-nuclia-code{margin:14px 0 0;padding:8px 10px;border-radius:8px;background:#111827;color:#f9fafb;overflow:auto;max-width:860px}
+			.pl-nuclia-code code{background:transparent;color:inherit;padding:0;white-space:nowrap;font-size:12px}
+		</style>';
+
+		echo '<div class="pl-nuclia-docs">';
+		echo '<div class="pl-nuclia-docs__header">';
+		echo '<h3 class="pl-nuclia-docs__title">' . esc_html__( 'Progress Agentic RAG setup and shortcode guide', 'progress-agentic-rag' ) . '</h3>';
+		echo '<p class="pl-nuclia-docs__subtitle">' . wp_kses_post(
+			sprintf(
+				__(
+					'Find your zone, token, and knowledge base ID in your Progress Agentic RAG cloud account. Create an account at %1$s and sign in at %2$s.',
+					'progress-agentic-rag'
+				),
+				'<a href="https://rag.progress.cloud/user/signup" target="_blank" rel="noopener noreferrer">rag.progress.cloud/user/signup</a>',
+				'<a href="https://rag.progress.cloud/user/login" target="_blank" rel="noopener noreferrer">rag.progress.cloud/user/login</a>'
+			)
+		) . '</p>';
+		echo '</div>';
+		echo '<div class="pl-nuclia-docs__body">';
+		echo '<div class="pl-nuclia-grid">';
+		echo '<div class="pl-nuclia-card">';
+		echo '<h4>' . esc_html__( '1) Connect your account', 'progress-agentic-rag' ) . '</h4>';
+		echo '<p>' . esc_html__( 'After you save your zone and API key, the plugin validates them against Progress Agentic RAG servers to ensure everything is correct.', 'progress-agentic-rag' ) . '</p>';
+		echo '</div>';
+		echo '<div class="pl-nuclia-card">';
+		echo '<h4>' . esc_html__( '2) Display the search experience', 'progress-agentic-rag' ) . '</h4>';
+		echo '<ul class="pl-nuclia-meta-list">';
+		echo '<li>' . esc_html__( 'Widget: Add the Progress Agentic RAG Searchbox widget in any widget area.', 'progress-agentic-rag' ) . '</li>';
+		echo '<li>' . esc_html__( 'Shortcode: Paste one of the shortcodes below into a page, post, or block.', 'progress-agentic-rag' ) . '</li>';
+		echo '</ul>';
+		echo '</div>';
+		echo '</div>';
+
+		echo '<h3>' . esc_html__( 'Shortcode', 'progress-agentic-rag' ) . '</h3>';
+		echo '<p>' . esc_html__( 'No required attributes. Zone and KB ID default to your saved plugin settings.', 'progress-agentic-rag' ) . '</p>';
+		echo '<ul class="pl-nuclia-meta-list">';
+		echo '<li><code>zone</code>: ' . esc_html__( 'Optional override. If omitted, the shortcode uses the Zone from plugin settings.', 'progress-agentic-rag' ) . '</li>';
+		echo '<li><code>kbid</code>: ' . esc_html__( 'Optional override. If omitted, the shortcode uses the Knowledge Box ID from plugin settings.', 'progress-agentic-rag' ) . '</li>';
+		echo '<li><code>show_config</code>: ' . esc_html__( 'Set to true to show the search configuration selector above the search box. Default: false (selector hidden).', 'progress-agentic-rag' ) . '</li>';
+		echo '<li><code>features</code>: ' . esc_html__( 'Comma-separated list of enabled features. Default: navigateToLink.', 'progress-agentic-rag' ) . '</li>';
+		echo '<li><code>proxy</code>: ' . esc_html__( 'Set to true to route requests through your WordPress proxy endpoint. Default: false (direct requests).', 'progress-agentic-rag' ) . '</li>';
+		echo '</ul>';
+		echo '<div class="pl-nuclia-features">';
+		echo '<span class="pl-nuclia-feature">navigateToLink</span>';
+		echo '<span class="pl-nuclia-feature">answers</span>';
+		echo '<span class="pl-nuclia-feature">rephrase</span>';
+		echo '<span class="pl-nuclia-feature">filter</span>';
+		echo '<span class="pl-nuclia-feature">suggestions</span>';
+		echo '<span class="pl-nuclia-feature">autocompleteFromNERs</span>';
+		echo '<span class="pl-nuclia-feature">llmCitations</span>';
+		echo '<span class="pl-nuclia-feature">hideResults</span>';
+		echo '</div>';
+
+		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Use defaults from plugin settings (simplest setup):', 'progress-agentic-rag' ) . '</p>';
+		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_basic ) . '</code></div>';
+		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Enable a full feature set while still using saved Zone and KB ID:', 'progress-agentic-rag' ) . '</p>';
+		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_full_features ) . '</code></div>';
+		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Route requests through your WordPress proxy endpoint:', 'progress-agentic-rag' ) . '</p>';
+		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_proxy ) . '</code></div>';
+		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Show the search configuration selector dropdown:', 'progress-agentic-rag' ) . '</p>';
+		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_show_config ) . '</code></div>';
+		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Override only the Zone for this page:', 'progress-agentic-rag' ) . '</p>';
+		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_custom_zone ) . '</code></div>';
+		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Override only the Knowledge Box ID for this page:', 'progress-agentic-rag' ) . '</p>';
+		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_custom_kbid ) . '</code></div>';
+		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Override both Zone and Knowledge Box ID:', 'progress-agentic-rag' ) . '</p>';
+		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_custom_zone_kbid ) . '</code></div>';
+		echo '</div>';
+		echo '</div>';
+
 		echo '<h3>'. esc_html__("Your Progress Agentic RAG credentials", 'progress-agentic-rag').'</h3>';
 	}
 

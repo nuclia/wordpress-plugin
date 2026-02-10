@@ -293,7 +293,7 @@
 				
 				if (statusEl) {
 					if (count > 0) {
-						statusEl.innerHTML = '<span class="spinner is-active" style="float: none; margin: 0 5px;"></span>' +
+						statusEl.innerHTML = '<span class="spinner is-active pl-nuclia-inline-spinner"></span>' +
 							'<span class="nuclia-pending-count">' + count + ' pending</span>';
 					} else {
 						statusEl.innerHTML = '';
@@ -412,24 +412,18 @@
 		var labelsets = data.labelsets || [];
 
 		var block = document.createElement('div');
-		block.className = 'nuclia-mapping-block';
+		block.className = 'nuclia-mapping-block pl-nuclia-section-card';
 		block.dataset.taxonomy = taxonomyKey;
-		block.style.marginTop = '15px';
-		block.style.padding = '10px';
-		block.style.background = '#fff';
-		block.style.border = '1px solid #dcdcde';
 
 		var header = document.createElement('div');
-		header.style.display = 'flex';
-		header.style.alignItems = 'center';
-		header.style.justifyContent = 'space-between';
+		header.className = 'pl-nuclia-flex-between';
 
 		var headerText = document.createElement('div');
 		var title = document.createElement('h4');
-		title.style.margin = '0 0 8px 0';
+		title.className = 'pl-nuclia-fallback-title';
 		title.textContent = taxonomy.label || taxonomyKey;
 		var slug = document.createElement('p');
-		slug.style.margin = '0 0 8px 0';
+		slug.className = 'pl-nuclia-muted';
 		slug.textContent = taxonomyKey;
 		headerText.appendChild(title);
 		headerText.appendChild(slug);
@@ -471,7 +465,7 @@
 
 		if (!labelsets.length) {
 			var labelsetNotice = document.createElement('p');
-			labelsetNotice.style.margin = '8px 0 0 0';
+			labelsetNotice.className = 'pl-nuclia-muted';
 			labelsetNotice.textContent = 'No labelsets available. Check your Nuclia credentials.';
 			block.appendChild(labelsetNotice);
 		}
@@ -479,13 +473,12 @@
 		var terms = taxonomy.terms || [];
 		if (!terms.length) {
 			var noTermsNotice = document.createElement('p');
-			noTermsNotice.style.margin = '8px 0 0 0';
+			noTermsNotice.className = 'pl-nuclia-muted';
 			noTermsNotice.textContent = 'No terms available for this taxonomy.';
 			block.appendChild(noTermsNotice);
 		} else {
 			var table = document.createElement('table');
-			table.className = 'widefat striped';
-			table.style.marginTop = '10px';
+			table.className = 'widefat striped pl-nuclia-label-table';
 
 			var thead = document.createElement('thead');
 			var headRow = document.createElement('tr');
@@ -521,12 +514,9 @@
 
 		var fallbackSection = document.createElement('div');
 		fallbackSection.className = 'nuclia-fallback-section';
-		fallbackSection.style.marginTop = '12px';
-		fallbackSection.style.paddingTop = '10px';
-		fallbackSection.style.borderTop = '1px dashed #dcdcde';
 
 		var fallbackTitle = document.createElement('p');
-		fallbackTitle.style.margin = '0 0 6px 0';
+		fallbackTitle.className = 'pl-nuclia-fallback-title';
 		fallbackTitle.innerHTML = '<strong>Fallback labels (when no terms assigned)</strong>';
 		fallbackSection.appendChild(fallbackTitle);
 
@@ -557,9 +547,8 @@
 		fallbackSection.appendChild(fallbackSelect);
 
 		var fallbackLabels = document.createElement('div');
-		fallbackLabels.className = 'nuclia-fallback-labels';
+		fallbackLabels.className = 'nuclia-fallback-labels pl-nuclia-muted';
 		fallbackLabels.dataset.taxonomy = taxonomyKey;
-		fallbackLabels.style.marginTop = '8px';
 		fallbackLabels.innerHTML = '<em>Select a labelset to load labels.</em>';
 		fallbackSection.appendChild(fallbackLabels);
 
@@ -628,8 +617,7 @@
 
 				labels.forEach(function(label) {
 					var labelWrap = document.createElement('label');
-					labelWrap.style.display = 'block';
-					labelWrap.style.margin = '2px 0';
+					labelWrap.className = 'pl-nuclia-checkbox-row';
 
 					var checkbox = document.createElement('input');
 					checkbox.type = 'checkbox';
@@ -707,8 +695,7 @@
 
 				labels.forEach(function(label) {
 					var labelWrap = document.createElement('label');
-					labelWrap.style.display = 'block';
-					labelWrap.style.margin = '2px 0';
+					labelWrap.className = 'pl-nuclia-checkbox-row';
 
 					var checkbox = document.createElement('input');
 					checkbox.type = 'checkbox';
