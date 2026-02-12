@@ -126,8 +126,9 @@ function nuclia_proxy_path_handler(): void {
 	$body = ( $method !== 'GET' && $method !== 'HEAD' ) ? file_get_contents( 'php://input' ) : '';
 	$content_type = isset( $_SERVER['CONTENT_TYPE'] ) ? sanitize_text_field( (string) $_SERVER['CONTENT_TYPE'] ) : '';
 	$accept = isset( $_SERVER['HTTP_ACCEPT'] ) ? sanitize_text_field( (string) $_SERVER['HTTP_ACCEPT'] ) : '';
+	$passthrough_headers = nuclia_proxy_extract_passthrough_headers_from_server();
 
-	$result = nuclia_proxy_execute( $zone, $path, $method, $query_params, $content_type, $accept, $body, $raw_query_string );
+	$result = nuclia_proxy_execute( $zone, $path, $method, $query_params, $content_type, $accept, $body, $raw_query_string, $passthrough_headers );
 
 	if ( isset( $result['error'] ) ) {
 		status_header( $result['status'] );
@@ -146,6 +147,85 @@ function nuclia_proxy_path_handler(): void {
 		echo $result['body'];
 	}
 	exit;
+}
+
+/**
+ * Extract a strict allow-list of headers we proxy to Nuclia.
+ *
+ * @return array<string,string>
+ */
+function nuclia_proxy_extract_passthrough_headers_from_server(): array {
+	$allowed = [
+		'x-synchronous',
+		'x-show-consumption',
+	];
+
+	$headers = [];
+	foreach ( $allowed as $header ) {
+		$server_key = 'HTTP_' . strtoupper( str_replace( '-', '_', $header ) );
+		if ( isset( $_SERVER[ $server_key ] ) ) {
+			$value = sanitize_text_field( (string) $_SERVER[ $server_key ] );
+			if ( $value !== '' ) {
+				$headers[ $header ] = $value;
+			}
+		}
+	}
+
+	return $headers;
+}
+
+/**
+ * Extract a strict allow-list of headers from REST requests.
+ *
+ * @param WP_REST_Request $request Request object.
+ * @return array<string,string>
+ */
+function nuclia_proxy_extract_passthrough_headers_from_request( WP_REST_Request $request ): array {
+	$allowed = [
+		'x-synchronous',
+		'x-show-consumption',
+	];
+
+	$headers = [];
+	foreach ( $allowed as $header ) {
+		$value = $request->get_header( $header );
+		if ( is_string( $value ) && $value !== '' ) {
+			$headers[ $header ] = sanitize_text_field( $value );
+		}
+	}
+
+	return $headers;
+}
+
+/**
+ * Determine whether a string header value should be treated as true.
+ *
+ * @param string $value Header value.
+ * @return bool
+ */
+function nuclia_proxy_is_truthy_header( string $value ): bool {
+	$value = strtolower( trim( $value ) );
+	return in_array( $value, [ '1', 'true', 'yes', 'on' ], true );
+}
+
+/**
+ * Return true when an /ask request should be streamed (incremental ndjson).
+ *
+ * @param string              $method              HTTP method.
+ * @param string              $normalized_path     Normalized API path.
+ * @param array<string,string> $passthrough_headers Forwarded request headers.
+ * @return bool
+ */
+function nuclia_proxy_should_stream_ask( string $method, string $normalized_path, array $passthrough_headers ): bool {
+	if ( $method !== 'POST' ) {
+		return false;
+	}
+	if ( ! preg_match( '#/ask/?$#', $normalized_path ) ) {
+		return false;
+	}
+
+	$synchronous = (string) ( $passthrough_headers['x-synchronous'] ?? '' );
+	return ! nuclia_proxy_is_truthy_header( $synchronous );
 }
 
 function nuclia_register_proxy_rest_routes(): void {
@@ -173,20 +253,22 @@ function nuclia_register_proxy_rest_routes(): void {
 }
 
 /**
- * Stream a download directly using cURL (no temp file).
- * Passes chunks directly to browser for optimal performance.
+ * Stream a response directly using cURL.
+ * Passes chunks directly to browser for true incremental delivery.
  *
  * This function directly outputs headers and content, then exits.
  * It does NOT return - control never passes back to the caller.
  *
- * @param string $zone         Nuclia zone.
- * @param string $normalized_path API path.
- * @param string $token        Nuclia service account token (empty if using eph-token).
- * @param string $remote_url   Full remote URL with query params.
+ * @param string                $remote_url      Full remote URL with query params.
+ * @param string                $method          HTTP method.
+ * @param string                $token           Nuclia service account token (empty if using eph-token).
+ * @param array<string,string>  $request_headers Extra headers to send upstream.
+ * @param string                $request_body    Request body for non-GET/HEAD calls.
  * @return never
  */
-function nuclia_proxy_stream_with_curl( string $zone, string $normalized_path, string $token, string $remote_url ): void {
+function nuclia_proxy_stream_with_curl( string $remote_url, string $method, string $token, array $request_headers = [], string $request_body = '' ): void {
 	$ch = curl_init( $remote_url );
+	$method = strtoupper( $method );
 
 	// Track if we have processed headers yet
 	$headers_processed = false;
@@ -234,6 +316,15 @@ function nuclia_proxy_stream_with_curl( string $zone, string $normalized_path, s
 	if ( $token !== '' ) {
 		$curl_headers[] = 'X-NUCLIA-SERVICEACCOUNT: Bearer ' . $token;
 	}
+	foreach ( $request_headers as $name => $value ) {
+		if ( ! is_string( $name ) || ! is_string( $value ) || $value === '' ) {
+			continue;
+		}
+		if ( strtolower( $name ) === 'accept-encoding' ) {
+			continue;
+		}
+		$curl_headers[] = $name . ': ' . $value;
+	}
 
 	// Headers to skip when forwarding to client
 	$skip_headers = [
@@ -260,6 +351,7 @@ function nuclia_proxy_stream_with_curl( string $zone, string $normalized_path, s
 
 			// Send HTTP status
 			status_header( $http_status );
+			header( 'X-Accel-Buffering: no' );
 
 			// Forward relevant response headers to client
 			foreach ( $response_headers as $name => $value ) {
@@ -275,6 +367,9 @@ function nuclia_proxy_stream_with_curl( string $zone, string $normalized_path, s
 		echo $data;
 
 		// Flush output buffer to send data immediately
+		if ( function_exists( 'ob_flush' ) ) {
+			@ob_flush();
+		}
 		if ( function_exists( 'flush' ) ) {
 			flush();
 		}
@@ -286,6 +381,7 @@ function nuclia_proxy_stream_with_curl( string $zone, string $normalized_path, s
 	curl_setopt_array( $ch, [
 		CURLOPT_RETURNTRANSFER => false,    // Don't return response, use callbacks
 		CURLOPT_HEADER => false,            // Don't include headers in output
+		CURLOPT_CUSTOMREQUEST => $method,
 		CURLOPT_FOLLOWLOCATION => true,     // Follow redirects
 		CURLOPT_MAXREDIRS => 10,
 		CURLOPT_TIMEOUT => 60,
@@ -293,18 +389,37 @@ function nuclia_proxy_stream_with_curl( string $zone, string $normalized_path, s
 		CURLOPT_HEADERFUNCTION => $header_callback,
 		CURLOPT_HTTPHEADER => $curl_headers,
 	] );
+	if ( $method === 'HEAD' ) {
+		curl_setopt( $ch, CURLOPT_NOBODY, true );
+	}
+	if ( $request_body !== '' && $method !== 'GET' && $method !== 'HEAD' ) {
+		curl_setopt( $ch, CURLOPT_POSTFIELDS, $request_body );
+	}
 
 	// Execute request
-	$result = curl_exec( $ch );
-	$http_code = curl_getinfo( $ch, CURLINFO_HTTP_CODE );
+	curl_exec( $ch );
 	$error = curl_error( $ch );
 	curl_close( $ch );
 
-	// Handle cURL errors
+	// Handle cURL errors before sending any success headers.
 	if ( $error !== '' ) {
 		status_header( 502 );
 		header( 'Content-Type: application/json' );
 		echo wp_json_encode( [ 'error' => 'cURL error: ' . $error ] );
+		exit;
+	}
+
+	// Some responses can be valid but contain no body (e.g. HEAD or 204).
+	if ( ! $headers_processed ) {
+		status_header( $http_status );
+		header( 'X-Accel-Buffering: no' );
+		foreach ( $response_headers as $name => $value ) {
+			$lower = strtolower( $name );
+			if ( in_array( $lower, $skip_headers, true ) ) {
+				continue;
+			}
+			header( $name . ': ' . $value, false );
+		}
 	}
 
 	// Exit to prevent WordPress from sending additional output
@@ -349,9 +464,10 @@ function nuclia_proxy_clean_query_string( string $raw_qs ): string {
  * @param string               $accept          Request Accept header.
  * @param string               $body            Request body.
  * @param string               $raw_query_string Raw query string preserving repeated params.
+ * @param array<string,string>  $passthrough_headers Allow-listed headers forwarded upstream.
  * @return array{status: int, headers: array<string,string>, body: string, stream_file: string, error?: array{code: string, message: string}}
  */
-function nuclia_proxy_execute( string $zone, string $path, string $method, array $query_params, string $content_type, string $accept, string $body, string $raw_query_string = '' ): array {
+function nuclia_proxy_execute( string $zone, string $path, string $method, array $query_params, string $content_type, string $accept, string $body, string $raw_query_string = '', array $passthrough_headers = [] ): array {
 	$zone = sanitize_title( $zone );
 	if ( $zone === '' ) {
 		return [ 'status' => 400, 'headers' => [], 'body' => '', 'stream_file' => '', 'error' => [ 'code' => 'nuclia_proxy_invalid_zone', 'message' => 'Invalid zone' ] ];
@@ -371,6 +487,7 @@ function nuclia_proxy_execute( string $zone, string $path, string $method, array
 	if ( $normalized_path === null ) {
 		return [ 'status' => 400, 'headers' => [], 'body' => '', 'stream_file' => '', 'error' => [ 'code' => 'nuclia_proxy_invalid_path', 'message' => 'Invalid path' ] ];
 	}
+	$token_for_upstream = isset( $query_params['eph-token'] ) ? '' : $token;
 
 	$remote_url = sprintf(
 		'https://%1$s.rag.progress.cloud/%2$s',
@@ -385,15 +502,13 @@ function nuclia_proxy_execute( string $zone, string $path, string $method, array
 		$remote_url .= '?' . $cleaned_qs;
 	}
 
-	// Detect download endpoints for optimized cURL streaming (no temp file)
-	$should_stream = str_contains( $normalized_path, '/download/' );
+	// Detect endpoints that require direct streaming to preserve chunk boundaries.
+	$should_stream_download = str_contains( $normalized_path, '/download/' );
+	$should_stream_ask = nuclia_proxy_should_stream_ask( $method, $normalized_path, $passthrough_headers );
 
 	// For download endpoints, use raw cURL for true streaming (bypasses temp file)
 	// Note: This function calls exit() and never returns
-	if ( $should_stream && ( $method === 'GET' || $method === 'HEAD' ) ) {
-		// If eph-token is present, use empty token so cURL doesn't send auth header
-		$token_for_curl = isset( $query_params['eph-token'] ) ? '' : $token;
-
+	if ( $should_stream_download && ( $method === 'GET' || $method === 'HEAD' ) ) {
 		// For HEAD requests, we need special handling to get headers without body
 		if ( $method === 'HEAD' ) {
 			$ch = curl_init( $remote_url );
@@ -406,7 +521,7 @@ function nuclia_proxy_execute( string $zone, string $path, string $method, array
 				CURLOPT_TIMEOUT => 20,
 				CURLOPT_HTTPHEADER => [
 					'Accept-Encoding: identity',
-					$token_for_curl !== '' ? 'X-NUCLIA-SERVICEACCOUNT: Bearer ' . $token_for_curl : '',
+					$token_for_upstream !== '' ? 'X-NUCLIA-SERVICEACCOUNT: Bearer ' . $token_for_upstream : '',
 				],
 			] );
 			$response = curl_exec( $ch );
@@ -438,17 +553,32 @@ function nuclia_proxy_execute( string $zone, string $path, string $method, array
 			exit;
 		}
 
-		nuclia_proxy_stream_with_curl( $zone, $normalized_path, $token_for_curl, $remote_url );
+		nuclia_proxy_stream_with_curl( $remote_url, $method, $token_for_upstream );
 		// Never reaches here due to exit() in stream function
 	}
 
-	// For non-download endpoints or non-GET methods, use WordPress HTTP API
+	// /ask returns ndjson chunks that must be relayed incrementally.
+	if ( $should_stream_ask ) {
+		$stream_headers = [
+			'Content-Type' => $content_type !== '' ? $content_type : 'application/json',
+			'Accept' => ( $accept !== '' && $accept !== '*/*' ) ? $accept : 'application/x-ndjson',
+		];
+		foreach ( $passthrough_headers as $name => $value ) {
+			if ( is_string( $name ) && is_string( $value ) && $value !== '' ) {
+				$stream_headers[ $name ] = $value;
+			}
+		}
+		nuclia_proxy_stream_with_curl( $remote_url, $method, $token_for_upstream, $stream_headers, $body );
+		// Never reaches here due to exit() in stream function
+	}
+
+	// For non-stream endpoints, use WordPress HTTP API.
 	$temp_file = ''; // Not used anymore for streaming
 	$should_stream = false; // Disable old temp file streaming
 
 	$headers = array_filter(
 		[
-			'X-NUCLIA-SERVICEACCOUNT' => 'Bearer ' . $token,
+			'X-NUCLIA-SERVICEACCOUNT' => $token_for_upstream !== '' ? 'Bearer ' . $token_for_upstream : null,
 			'Content-Type' => $content_type !== '' ? $content_type : null,
 			'Accept' => $accept !== '' ? $accept : null,
 			// Don't request compression for streaming downloads - WordPress doesn't decompress when streaming to file
@@ -456,6 +586,11 @@ function nuclia_proxy_execute( string $zone, string $path, string $method, array
 			'Accept-Encoding' => $should_stream ? 'identity' : 'gzip, deflate, br, zstd'
 		]
 	);
+	foreach ( $passthrough_headers as $name => $value ) {
+		if ( is_string( $name ) && is_string( $value ) && $value !== '' ) {
+			$headers[ $name ] = $value;
+		}
+	}
 
 	$request_args = [
 		'method' => $method,
@@ -471,11 +606,6 @@ function nuclia_proxy_execute( string $zone, string $path, string $method, array
 		$request_args['filename'] = $temp_file;
 	}
 	
-	// If eph-token is present in query params, remove the Bearer auth token
-	if ( isset( $query_params['eph-token'] ) ) {
-		unset( $request_args['headers']['X-NUCLIA-SERVICEACCOUNT'] );
-	}
-
 	$response = wp_remote_request( $remote_url, $request_args );
 
 	if ( is_wp_error( $response ) ) {
@@ -530,7 +660,8 @@ function nuclia_proxy_rest_handler( WP_REST_Request $request ) {
 		$request->get_header( 'content-type' ) ?? '',
 		$request->get_header( 'accept' ) ?? '',
 		$request->get_body(),
-		$raw_query_string
+		$raw_query_string,
+		nuclia_proxy_extract_passthrough_headers_from_request( $request )
 	);
 
 	if ( isset( $result['error'] ) ) {
