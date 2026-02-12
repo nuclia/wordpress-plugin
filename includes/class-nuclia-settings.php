@@ -22,6 +22,7 @@ class Nuclia_Settings {
 		add_option( 'nuclia_zone', '' );
 		add_option( 'nuclia_token', '' );
 		add_option( 'nuclia_kbid', '' );
+		add_option( 'nuclia_account_id', '' );
 		add_option( 'nuclia_api_is_reachable', 'no' );
 		add_option( 'nuclia_taxonomy_label_map', [] );
 		add_option( 'nuclia_labelsets_cache', [
@@ -68,6 +69,17 @@ class Nuclia_Settings {
 	public function get_kbid(): string {
 		return (string) get_option( 'nuclia_kbid', '' );
 
+	}
+
+	/**
+	 * Get the Nuclia Account ID.
+	 *
+	 * @since   1.2.0
+	 *
+	 * @return string
+	 */
+	public function get_account_id(): string {
+		return (string) get_option( 'nuclia_account_id', '' );
 	}
 
 	/**

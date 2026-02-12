@@ -141,6 +141,14 @@ class Nuclia_Admin_Page_Settings {
 			$this->slug,
 			'nuclia_section_settings'
 		);
+
+		add_settings_field(
+			'nuclia_account_id',
+			esc_html__( 'Account ID', 'progress-agentic-rag' ),
+			[ $this, 'account_id_callback' ],
+			$this->slug,
+			'nuclia_section_settings'
+		);
 		
 		add_settings_field(
 			'nuclia_token',
@@ -184,6 +192,15 @@ class Nuclia_Admin_Page_Settings {
 				'sanitize_callback' => [ $this, 'sanitize_kbid' ]
 			]
 		);	
+
+		register_setting(
+			'nuclia_settings',
+			'nuclia_account_id',
+			[
+				'type' => 'text',
+				'sanitize_callback' => [ $this, 'sanitize_account_id' ]
+			]
+		);
 			
 		register_setting(
 			'nuclia_settings',
@@ -257,6 +274,22 @@ class Nuclia_Admin_Page_Settings {
 <input type="text" name="nuclia_kbid" class="regular-text" value="<?php echo esc_attr( $setting ); ?>" autocomplete="off" />
 <p class="description" id="home-description">
   <?php esc_html_e( 'Your Progress Agentic RAG Knowledge box UID (must be public).', 'progress-agentic-rag' ); ?>
+</p>
+<?php
+	}
+
+	/**
+	 * Account ID callback.
+	 *
+	 * @since 1.2.0
+	 */
+	public function account_id_callback(): void {
+		$settings = $this->plugin->get_settings();
+		$setting = $settings->get_account_id();
+		?>
+<input type="text" name="nuclia_account_id" class="regular-text" value="<?php echo esc_attr( $setting ); ?>" autocomplete="off" required />
+<p class="description" id="home-description">
+  <?php esc_html_e( 'Required Nuclia account ID.', 'progress-agentic-rag' ); ?>
 </p>
 <?php
 	}
@@ -716,6 +749,31 @@ class Nuclia_Admin_Page_Settings {
 	}
 
 	/**
+	 * Sanitize account ID.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $value The value to sanitize.
+	 *
+	 * @return string
+	 */
+	public function sanitize_account_id( string $value ): string {
+		$value = sanitize_text_field( $value );
+
+		if ( empty( $value ) ) {
+			add_settings_error(
+				'nuclia_settings',
+				'empty_account_id',
+				esc_html__( 'Account ID should not be empty.', 'progress-agentic-rag' )
+			);
+			$settings = $this->plugin->get_settings();
+			$settings->set_api_is_reachable( false );
+		}
+
+		return $value;
+	}
+
+	/**
 	 * Sanitize Service Access token.
 	 *
 	 * @since  1.0.0
@@ -1048,7 +1106,7 @@ class Nuclia_Admin_Page_Settings {
 		echo '<p class="pl-nuclia-docs__subtitle">' . wp_kses_post(
 			sprintf(
 				__(
-					'Find your zone, token, and knowledge base ID in your Progress Agentic RAG cloud account. Create an account at %1$s and sign in at %2$s.',
+					'Find your zone, token, knowledge base ID, and account ID in your Progress Agentic RAG cloud account. Create an account at %1$s and sign in at %2$s.',
 					'progress-agentic-rag'
 				),
 				'<a href="https://rag.progress.cloud/user/signup" target="_blank" rel="noopener noreferrer">rag.progress.cloud/user/signup</a>',
@@ -1060,7 +1118,7 @@ class Nuclia_Admin_Page_Settings {
 		echo '<div class="pl-nuclia-grid">';
 		echo '<div class="pl-nuclia-card">';
 		echo '<h4>' . esc_html__( '1) Connect your account', 'progress-agentic-rag' ) . '</h4>';
-		echo '<p>' . esc_html__( 'After you save your zone and API key, the plugin validates them against Progress Agentic RAG servers to ensure everything is correct.', 'progress-agentic-rag' ) . '</p>';
+		echo '<p>' . esc_html__( 'After you save your zone, knowledge box ID, account ID, and API key, the plugin validates them against Progress Agentic RAG servers to ensure everything is correct.', 'progress-agentic-rag' ) . '</p>';
 		echo '</div>';
 		echo '<div class="pl-nuclia-card">';
 		echo '<h4>' . esc_html__( '2) Display the search experience', 'progress-agentic-rag' ) . '</h4>';

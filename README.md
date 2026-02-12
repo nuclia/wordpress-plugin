@@ -28,6 +28,7 @@ Use:
 
 - `zone` is optional. If omitted, the plugin uses the Zone configured in plugin settings.
 - `kbid` is optional. If omitted, the plugin uses the Knowledge Box ID configured in plugin settings.
+- `account`, `state`, and `kbslug` are automatically passed only when the Knowledge Box is detected as private.
 - `features` is optional (default: `navigateToLink`).
 - `proxy` is optional (`true` routes through the WordPress proxy, default is direct requests).
 - `show_config` is optional (default: `false`). Set `show_config="true"` to display the search configuration dropdown.
@@ -59,7 +60,7 @@ From your WordPress dashboard:
 2. Click **Choose File** and select the plugin zip file
 3. Click **Install Now**
 4. **Activate** Progress Agentic RAG from your Plugins page
-5. Click on the new menu item **Progress Agentic RAG** and enter your API keys
+5. Click on the new menu item **Progress Agentic RAG** and enter your Zone, Knowledge Box ID, Account ID, and API key
 6. Select the post types you want to index and use the buttons to start indexing
 
 ### Minimum Requirements

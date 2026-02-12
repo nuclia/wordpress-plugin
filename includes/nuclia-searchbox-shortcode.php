@@ -42,12 +42,14 @@ function nuclia_searchbox( $atts = [] ): string {
 		$kbid = sanitize_text_field( (string) get_option( 'nuclia_kbid', '' ) );
 	}
 
-	// We need zone and kbid, either from shortcode attributes or saved settings.
-	if ( empty($zone) || empty($kbid) ) :
+	$account_id = sanitize_text_field( (string) get_option( 'nuclia_account_id', '' ) );
+
+	// We need zone, kbid and account_id from saved settings (zone/kbid can be overridden via shortcode).
+	if ( empty($zone) || empty($kbid) || empty( $account_id ) ) :
 		if ( current_user_can('edit_posts')) {
 			return sprintf(
 				'<div style="color:red; border: 2px dotted red; padding: .5em;">%s</div>',
-				__( 'Nuclia shortcode misconfigured. Please set your zone and Knowledge Box ID in plugin settings, or pass zone and kbid in the shortcode.', 'progress-agentic-rag' )
+				__( 'Nuclia shortcode misconfigured. Please set your Account ID in plugin settings and configure Zone and Knowledge Box ID in plugin settings or via shortcode.', 'progress-agentic-rag' )
 			);
 		} else {
 			return '';
@@ -191,12 +193,26 @@ function nuclia_searchbox( $atts = [] ): string {
 		}
 	}
 
+	$private_attrs = '';
+	$kb_details = nuclia_searchbox_fetch_kb_details( $zone, $account_id, $kbid );
+	$kb_state = strtoupper( sanitize_text_field( (string) ( $kb_details['state'] ?? '' ) ) );
+	$kb_slug = sanitize_text_field( (string) ( $kb_details['slug'] ?? '' ) );
+
+	if ( $kb_state === 'PRIVATE' ) {
+		$private_attrs = sprintf(
+			' state="%1$s" account="%2$s" kbslug="%3$s"',
+			esc_attr( $kb_state ),
+			esc_attr( $account_id ),
+			esc_attr( $kb_slug )
+		);
+	}
+
 	$searchbox = sprintf(
-		'<div class="pl-nuclia-searchbox">%9$s%4$s<nuclia-search-bar
+		'<div class="pl-nuclia-searchbox">%10$s%4$s<nuclia-search-bar
 		  knowledgebox="%1$s"
 		  zone="%2$s"
 		  features="%3$s"
-		  %6$s%7$s%8$s></nuclia-search-bar>
+		  %5$s%6$s%7$s%8$s%9$s></nuclia-search-bar>
 		<nuclia-search-results ></nuclia-search-results></div>',
 		sanitize_title( $kbid ),
 		sanitize_title( $zone ),
@@ -206,6 +222,7 @@ function nuclia_searchbox( $atts = [] ): string {
 		$backend_attr,
 		$proxy_attr,
 		$api_key_attr,
+		$private_attrs,
 		$search_config_style
 	);
 
@@ -234,6 +251,64 @@ function nuclia_searchbox_parse_bool( mixed $value, bool $default = false ): boo
 	}
 
 	return $default;
+}
+
+function nuclia_searchbox_fetch_kb_details( string $zone, string $account_id, string $kbid ): array {
+	$zone = sanitize_text_field( $zone );
+	$account_id = sanitize_text_field( $account_id );
+	$kbid = sanitize_text_field( $kbid );
+	$token = sanitize_text_field( (string) get_option( 'nuclia_token', '' ) );
+
+	if ( $zone === '' || $account_id === '' || $kbid === '' || $token === '' ) {
+		return [];
+	}
+
+	$cache_key = 'nuclia_kb_details_' . md5( strtolower( $zone . '|' . $account_id . '|' . $kbid ) );
+	$cached_details = get_transient( $cache_key );
+	if ( is_array( $cached_details ) ) {
+		return $cached_details;
+	}
+
+	$uri = sprintf(
+		'https://%1$s.rag.progress.cloud/api/v1/account/%2$s/kb/%3$s',
+		rawurlencode( $zone ),
+		rawurlencode( $account_id ),
+		rawurlencode( $kbid )
+	);
+
+	$response = wp_remote_get(
+		$uri,
+		[
+			'method'  => 'GET',
+			'timeout' => 20,
+			'headers' => [
+				'X-NUCLIA-SERVICEACCOUNT' => 'Bearer ' . $token,
+			],
+		]
+	);
+
+	if ( is_wp_error( $response ) ) {
+		return [];
+	}
+
+	$status = wp_remote_retrieve_response_code( $response );
+	if ( $status !== 200 ) {
+		return [];
+	}
+
+	$data = json_decode( wp_remote_retrieve_body( $response ), true );
+	if ( ! is_array( $data ) ) {
+		return [];
+	}
+
+	$details = [
+		'state' => sanitize_text_field( (string) ( $data['state'] ?? '' ) ),
+		'slug'  => sanitize_text_field( (string) ( $data['slug'] ?? '' ) ),
+	];
+
+	set_transient( $cache_key, $details, 600 );
+
+	return $details;
 }
 
 function nuclia_searchbox_fetch_search_configurations( string $zone, string $kbid ): array {
