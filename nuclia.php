@@ -5,7 +5,7 @@
  * Description:       Integrate the powerful Progress Agentic RAG service with WordPress
  * Version:           1.0.0
  * Requires at least: 6.8
- * Requires PHP:      8.2
+ * Requires PHP:      8.1
  * Author:            Progress Software
  * Author URI:        https://www.progress.com/
  * Contributors:      Serge Rauber, Radek Friedl
@@ -26,7 +26,7 @@ if ( ! defined( 'WPINC' ) ) die;
 define( 'PROGRESS_NUCLIA_VERSION', '1.0.0' );
 
 // The minimum required PHP version.
-define( 'PROGRESS_NUCLIA_MIN_PHP_VERSION', '8.2' );
+define( 'PROGRESS_NUCLIA_MIN_PHP_VERSION', '8.1' );
 
 // The minimum required WordPress version.
 define( 'PROGRESS_NUCLIA_MIN_WP_VERSION', '6.8' );
