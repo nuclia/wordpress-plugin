@@ -73,6 +73,7 @@ class Nuclia_Admin_Page_Settings {
 		add_action( 'wp_ajax_nuclia_cancel_indexing', [ $this, 'ajax_cancel_indexing' ] );
 		add_action( 'wp_ajax_nuclia_get_indexing_status', [ $this, 'ajax_get_indexing_status' ] );
 		add_action( 'wp_ajax_nuclia_get_labelset_labels', [ $this, 'ajax_get_labelset_labels' ] );
+		add_action( 'wp_ajax_nuclia_clear_synced_files', [ $this, 'ajax_clear_synced_files' ] );
 	}
 
 	/**
@@ -401,6 +402,21 @@ class Nuclia_Admin_Page_Settings {
     <p><strong><span class="dashicons dashicons-saved"></span>
         <?php esc_html_e( 'API connected. Indexing runs automatically in the background.', 'progress-agentic-rag' ); ?>
     </strong></p>
+</div>
+
+<div class="nuclia-danger-zone" style="margin-top: 20px; padding: 15px; border: 1px solid #d63638; border-radius: 4px; background: #fcf0f1;">
+    <p style="margin: 0 0 10px; color: #d63638;"><strong><?php esc_html_e( 'Danger Zone', 'progress-agentic-rag' ); ?></strong></p>
+    <p style="margin: 0 0 12px;"><?php esc_html_e( 'Clear the synced files cache if files have been deleted directly in Nuclia and you need to re-sync them. This will reset all indexed counts to zero.', 'progress-agentic-rag' ); ?></p>
+    <button
+        type="button"
+        id="nuclia-clear-synced-button"
+        class="button"
+        style="border-color: #d63638; color: #d63638;"
+        data-nonce="<?php echo esc_attr( wp_create_nonce( 'nuclia_clear_synced_nonce' ) ); ?>"
+    >
+        <span class="nuclia-clear-synced-text"><?php esc_html_e( 'Clear Synced Files Cache', 'progress-agentic-rag' ); ?></span>
+        <span class="spinner" style="float: none; margin: 0 0 0 8px;"></span>
+    </button>
 </div>
 <?php
 		endif;
@@ -1290,5 +1306,30 @@ class Nuclia_Admin_Page_Settings {
 		$labels = $this->plugin->get_api()->get_labelset_labels( $labelset );
 		wp_send_json_success( [ 'labels' => $labels ] );
 	}
-	
+
+	/**
+	 * AJAX handler to clear all synced files cache.
+	 *
+	 * @since 1.3.0
+	 */
+	public function ajax_clear_synced_files(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( 'Unauthorized', 403 );
+		}
+
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'nuclia_clear_synced_nonce' ) ) {
+			wp_send_json_error( 'Invalid nonce', 403 );
+		}
+
+		$result = $this->plugin->get_api()->clear_all_indexed();
+
+		if ( $result === false ) {
+			wp_send_json_error( 'Failed to clear synced files cache.', 500 );
+		}
+
+		wp_send_json_success( [
+			'message' => __( 'Synced files cache cleared successfully. All posts will need to be re-synced.', 'progress-agentic-rag' ),
+		] );
+	}
+
 }

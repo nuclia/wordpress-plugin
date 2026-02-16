@@ -52,6 +52,12 @@
 				handleRemoveMappingClick(e);
 			}
 		});
+
+		// Clear synced files button
+		var clearSyncedButton = document.getElementById('nuclia-clear-synced-button');
+		if (clearSyncedButton) {
+			clearSyncedButton.addEventListener('click', handleClearSyncedClick);
+		}
 	});
 
 	/**
@@ -717,6 +723,80 @@
 			containers.forEach(function(container) {
 				container.innerHTML = '<em>Select a labelset to load labels.</em>';
 			});
+		});
+	}
+
+	/**
+	 * Handle clear synced files button click
+	 */
+	function handleClearSyncedClick(e) {
+		e.preventDefault();
+		var clickedButton = e.currentTarget;
+
+		if (!confirm('This will clear all synced file mappings. All posts will need to be re-synced. Continue?')) {
+			return;
+		}
+
+		var spinner = clickedButton.querySelector('.spinner');
+		var buttonText = clickedButton.querySelector('.nuclia-clear-synced-text');
+
+		clickedButton.disabled = true;
+		if (spinner) {
+			spinner.classList.add('is-active');
+		}
+		if (buttonText) {
+			buttonText.textContent = 'Clearing...';
+		}
+
+		var nonce = clickedButton.dataset.nonce || '';
+
+		var formData = new FormData();
+		formData.append('action', 'nuclia_clear_synced_files');
+		formData.append('nonce', nonce);
+
+		fetch(ajaxurl, {
+			method: 'POST',
+			credentials: 'same-origin',
+			body: formData
+		})
+		.then(function(response) {
+			if (!response.ok) {
+				throw new Error('Network response was not ok');
+			}
+			return response.json();
+		})
+		.then(function(response) {
+			if (response.success) {
+				if (buttonText) {
+					buttonText.textContent = 'Cleared!';
+				}
+				// Refresh page to show updated counts
+				setTimeout(function() {
+					location.reload();
+				}, 1500);
+			} else {
+				if (buttonText) {
+					buttonText.textContent = 'Error';
+				}
+				clickedButton.disabled = false;
+				console.error('Clear synced files failed:', response);
+				if (response.data && response.data.message) {
+					alert('Error: ' + response.data.message);
+				}
+			}
+		})
+		.catch(function(error) {
+			if (buttonText) {
+				buttonText.textContent = 'Error';
+			}
+			clickedButton.disabled = false;
+			console.error('Clear synced files error:', error);
+			alert('An error occurred while clearing synced files.');
+		})
+		.finally(function() {
+			if (spinner) {
+				spinner.classList.remove('is-active');
+			}
 		});
 	}
 

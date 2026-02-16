@@ -67,6 +67,19 @@ class Nuclia_API {
 	}
 
 	/**
+	 * Clear all indexed posts from the sync mapping table.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return int|false Number of rows affected or false on error.
+	 */
+	public function clear_all_indexed(): int|false {
+		global $wpdb;
+		$result = $wpdb->query( "TRUNCATE TABLE {$wpdb->prefix}agentic_rag_for_wp" );
+		return $result;
+	}
+
+	/**
 	 * Prepare NucliaDB resource body
 	 * @param WP_Post $post
 	 * @return bool|string
