@@ -143,12 +143,11 @@ if ( nuclia_php_version_check() && nuclia_wp_version_check() ) {
 	// Load Action Scheduler library for background processing
 	require_once PROGRESS_NUCLIA_PATH . 'includes/libraries/action-scheduler/action-scheduler.php';
 	
-	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-widget.php';
-	require_once PROGRESS_NUCLIA_PATH . 'includes/nuclia-searchbox-shortcode.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/nuclia-proxy-rest.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-api.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-settings.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-background-processor.php';
+	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-label-reprocessor.php';
 	require_once PROGRESS_NUCLIA_PATH . 'includes/class-nuclia-plugin.php';
 	if ( is_admin() ) {
 		require_once PROGRESS_NUCLIA_PATH . 'includes/admin/class-nuclia-admin-page-settings.php';

@@ -3,6 +3,22 @@
 
 	var statusPollInterval = null;
 	var isPolling = false;
+	var reprocessPollInterval = null;
+	var isReprocessPolling = false;
+
+	/**
+	 * Get internationalized string.
+	 *
+	 * @param {string} key The translation key.
+	 * @param {*} defaultValue Default value if not found.
+	 * @return {*} The translated string or default.
+	 */
+	function __(key, defaultValue) {
+		if (typeof nucliaReindex !== 'undefined' && nucliaReindex.i18n && nucliaReindex.i18n[key]) {
+			return nucliaReindex.i18n[key];
+		}
+		return defaultValue;
+	}
 
 	document.addEventListener('DOMContentLoaded', function() {
 		// Schedule indexing buttons
@@ -58,6 +74,31 @@
 		if (clearSyncedButton) {
 			clearSyncedButton.addEventListener('click', handleClearSyncedClick);
 		}
+
+		// Label reprocessing button
+		var reprocessButton = document.querySelector('.nuclia-reprocess-button');
+		if (reprocessButton) {
+			reprocessButton.addEventListener('click', handleReprocessLabelsClick);
+		}
+
+		// Cancel reprocessing button
+		var cancelReprocessButton = document.querySelector('.nuclia-cancel-reprocess-button');
+		if (cancelReprocessButton) {
+			cancelReprocessButton.addEventListener('click', handleCancelReprocessClick);
+		}
+
+		// Start reprocess polling if active
+		var reprocessStatus = document.querySelector('.nuclia-reprocess-status .spinner');
+		if (reprocessStatus) {
+			startReprocessStatusPolling();
+		}
+
+		// Copy buttons (delegate for dynamically added buttons)
+		document.addEventListener('click', function(e) {
+			if (e.target && e.target.classList.contains('pl-nuclia-copy-btn')) {
+				handleCopyButtonClick(e);
+			}
+		});
 	});
 
 	/**
@@ -812,6 +853,231 @@
 	 */
 	function getLabelsNonce() {
 		return (typeof nucliaReindex !== 'undefined' ? nucliaReindex.labelsNonce : '');
+	}
+
+	/**
+	 * Handle copy button click for code blocks
+	 */
+	function handleCopyButtonClick(e) {
+		var button = e.currentTarget;
+		var textToCopy = '';
+
+		// Check for data-copy-text attribute (direct text)
+		if (button.dataset.copyText) {
+			textToCopy = button.dataset.copyText;
+		}
+		// Check for data-copy-target attribute (copy from element)
+		else if (button.dataset.copyTarget) {
+			var targetEl = document.getElementById(button.dataset.copyTarget);
+			if (targetEl) {
+				textToCopy = targetEl.textContent.trim();
+			}
+		}
+
+		if (!textToCopy) {
+			return;
+		}
+
+		var originalText = button.textContent;
+		navigator.clipboard.writeText(textToCopy).then(function() {
+			button.textContent = __('copied', 'Copied!');
+			setTimeout(function() {
+				button.textContent = originalText;
+			}, 2000);
+		}).catch(function() {
+			button.textContent = __('copyFailed', 'Copy failed');
+			setTimeout(function() {
+				button.textContent = originalText;
+			}, 2000);
+		});
+	}
+
+	/**
+	 * Handle reprocess labels button click
+	 */
+	function handleReprocessLabelsClick(e) {
+		e.preventDefault();
+		var clickedButton = e.currentTarget;
+
+		var syncedCount = document.getElementById('nuclia-synced-count');
+		var count = syncedCount ? parseInt(syncedCount.textContent, 10) : 0;
+
+		var confirmMsg = __('confirmReprocess', 'This will update labels for %d synced resource(s) with the current taxonomy mapping. Continue?');
+		if (!confirm(confirmMsg.replace('%d', count))) {
+			return;
+		}
+
+		clickedButton.disabled = true;
+		clickedButton.textContent = 'Scheduling...';
+
+		var formData = new FormData();
+		formData.append('action', 'nuclia_reprocess_labels');
+		formData.append('nonce', getLabelsNonce());
+
+		fetch(ajaxurl, {
+			method: 'POST',
+			credentials: 'same-origin',
+			body: formData
+		})
+		.then(function(response) {
+			if (!response.ok) {
+				throw new Error('Network response was not ok');
+			}
+			return response.json();
+		})
+		.then(function(response) {
+			if (response.success) {
+				clickedButton.textContent = 'Scheduled!';
+				if (response.data && response.data.message) {
+					alert(response.data.message);
+				}
+				startReprocessStatusPolling();
+				// Refresh after a short delay to show updated status
+				setTimeout(function() {
+					location.reload();
+				}, 2000);
+			} else {
+				clickedButton.textContent = 'Error';
+				clickedButton.disabled = false;
+				console.error('Reprocess failed:', response);
+				if (response.data && response.data.message) {
+					alert('Error: ' + response.data.message);
+				}
+			}
+		})
+		.catch(function(error) {
+			clickedButton.textContent = 'Error';
+			clickedButton.disabled = false;
+			console.error('Reprocess error:', error);
+		});
+	}
+
+	/**
+	 * Handle cancel reprocess button click
+	 */
+	function handleCancelReprocessClick(e) {
+		e.preventDefault();
+		var clickedButton = e.currentTarget;
+
+		if (!confirm('Are you sure you want to cancel the label reprocessing?')) {
+			return;
+		}
+
+		clickedButton.disabled = true;
+		clickedButton.textContent = 'Cancelling...';
+
+		var formData = new FormData();
+		formData.append('action', 'nuclia_cancel_reprocess_labels');
+		formData.append('nonce', getLabelsNonce());
+
+		fetch(ajaxurl, {
+			method: 'POST',
+			credentials: 'same-origin',
+			body: formData
+		})
+		.then(function(response) {
+			if (!response.ok) {
+				throw new Error('Network response was not ok');
+			}
+			return response.json();
+		})
+		.then(function(response) {
+			if (response.success) {
+				stopReprocessStatusPolling();
+				// Refresh page to show updated state
+				location.reload();
+			} else {
+				clickedButton.textContent = 'Error';
+				clickedButton.disabled = false;
+				console.error('Cancel reprocess failed:', response);
+			}
+		})
+		.catch(function(error) {
+			clickedButton.textContent = 'Error';
+			clickedButton.disabled = false;
+			console.error('Cancel reprocess error:', error);
+		});
+	}
+
+	/**
+	 * Start polling for reprocess status updates
+	 */
+	function startReprocessStatusPolling() {
+		if (isReprocessPolling) {
+			return;
+		}
+		isReprocessPolling = true;
+		pollReprocessStatus();
+		reprocessPollInterval = setInterval(pollReprocessStatus, 5000); // Poll every 5 seconds
+	}
+
+	/**
+	 * Stop polling for reprocess status updates
+	 */
+	function stopReprocessStatusPolling() {
+		isReprocessPolling = false;
+		if (reprocessPollInterval) {
+			clearInterval(reprocessPollInterval);
+			reprocessPollInterval = null;
+		}
+	}
+
+	/**
+	 * Poll for current reprocess status
+	 */
+	function pollReprocessStatus() {
+		var formData = new FormData();
+		formData.append('action', 'nuclia_get_reprocess_status');
+		formData.append('nonce', getLabelsNonce());
+
+		fetch(ajaxurl, {
+			method: 'POST',
+			credentials: 'same-origin',
+			body: formData
+		})
+		.then(function(response) {
+			if (!response.ok) {
+				throw new Error('Network response was not ok');
+			}
+			return response.json();
+		})
+		.then(function(response) {
+			if (response.success && response.data && response.data.reprocessStatus) {
+				updateReprocessUIFromStatus(response.data.reprocessStatus);
+
+				// Stop polling if no more pending or running jobs
+				if (!response.data.reprocessStatus.is_active) {
+					stopReprocessStatusPolling();
+					// Refresh the page to show the reprocess button again
+					setTimeout(function() {
+						location.reload();
+					}, 1500);
+				}
+			}
+		})
+		.catch(function(error) {
+			console.error('Reprocess status poll error:', error);
+		});
+	}
+
+	/**
+	 * Update reprocess UI elements based on status
+	 */
+	function updateReprocessUIFromStatus(status) {
+		var pendingEl = document.getElementById('nuclia-reprocess-pending');
+		var runningEl = document.getElementById('nuclia-reprocess-running');
+		var failedEl = document.getElementById('nuclia-reprocess-failed');
+
+		if (pendingEl) {
+			pendingEl.textContent = status.pending + ' pending';
+		}
+		if (runningEl) {
+			runningEl.textContent = status.running + ' running';
+		}
+		if (failedEl && status.failed > 0) {
+			failedEl.textContent = status.failed + ' failed';
+			failedEl.style.display = 'inline';
+		}
 	}
 
 })();

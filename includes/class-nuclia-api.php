@@ -80,6 +80,95 @@ class Nuclia_API {
 	}
 
 	/**
+	 * Get all indexed posts with their Nuclia resource IDs.
+	 *
+	 * @since 1.4.0
+	 *
+	 * @return array<\stdClass> Array of objects with post_id and nuclia_rid properties.
+	 */
+	public function get_all_indexed_posts(): array {
+		global $wpdb;
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT post_id, nuclia_rid FROM {$wpdb->prefix}agentic_rag_for_wp WHERE nuclia_rid IS NOT NULL AND nuclia_rid != %s",
+				''
+			)
+		);
+	}
+
+	/**
+	 * Update only the labels/classifications for a resource.
+	 *
+	 * This sends a PATCH request with only the usermetadata.classifications field,
+	 * which updates labels without triggering file reprocessing.
+	 *
+	 * @since 1.4.0
+	 *
+	 * @param int     $post_id The post ID.
+	 * @param string  $rid     The Nuclia resource UUID.
+	 * @param WP_Post $post    The post object.
+	 *
+	 * @return array{success: bool, code: int, message: string} Result array with success status, response code, and message.
+	 */
+	public function update_resource_labels( int $post_id, string $rid, WP_Post $post ): array {
+		$uri = "{$this->endpoint}resource/{$rid}";
+
+		// Reuse existing method to build classifications
+		$classifications = $this->build_taxonomy_classifications( $post );
+
+		$body = [
+			'usermetadata' => [
+				'classifications' => $classifications,
+			],
+		];
+
+		$args = [
+			'method'  => 'PATCH',
+			'headers' => [
+				'Content-type'            => 'application/json',
+				'X-NUCLIA-SERVICEACCOUNT' => 'Bearer ' . $this->settings->get_token(),
+			],
+			'body' => json_encode( $body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ),
+		];
+
+		nuclia_log( "Updating labels for post {$post_id}, rid: {$rid}" );
+		nuclia_log( "URI: {$uri}" );
+
+		$response = wp_remote_request( $uri, $args );
+		$response_code = wp_remote_retrieve_response_code( $response );
+
+		nuclia_log( "Response code: {$response_code}" );
+
+		if ( is_wp_error( $response ) ) {
+			$error_message = $response->get_error_message();
+			nuclia_error_log( "Failed to update labels for post {$post_id}: " . $error_message );
+			return [
+				'success' => false,
+				'code'    => 0,
+				'message' => $error_message,
+			];
+		}
+
+		if ( $response_code !== 200 ) {
+			$api_response = json_decode( wp_remote_retrieve_body( $response ), true );
+			$error_message = $api_response['message'] ?? $api_response['detail'] ?? "HTTP {$response_code}";
+			nuclia_error_log( "Failed to update labels for post {$post_id}, code: {$response_code}, response: " . print_r( $api_response, true ) );
+			return [
+				'success' => false,
+				'code'    => $response_code,
+				'message' => $error_message,
+			];
+		}
+
+		nuclia_log( "Successfully updated labels for post {$post_id}" );
+		return [
+			'success' => true,
+			'code'    => 200,
+			'message' => 'Labels updated successfully',
+		];
+	}
+
+	/**
 	 * Prepare NucliaDB resource body
 	 * @param WP_Post $post
 	 * @return bool|string

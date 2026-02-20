@@ -41,6 +41,15 @@ class Nuclia_Plugin {
 	private Nuclia_Background_Processor $background_processor;
 
 	/**
+	 * Instance of Nuclia_Label_Reprocessor.
+	 *
+	 * @since  1.4.0
+	 *
+	 * @var Nuclia_Label_Reprocessor
+	 */
+	private Nuclia_Label_Reprocessor $label_reprocessor;
+
+	/**
 	 * Nuclia_Plugin constructor.
 	 *
 	 * @since  1.0.0
@@ -49,9 +58,11 @@ class Nuclia_Plugin {
 		$this->settings             = new Nuclia_Settings();
 		$this->api                  = new Nuclia_API( $this->settings );
 		$this->background_processor = new Nuclia_Background_Processor( $this );
+		$this->label_reprocessor    = new Nuclia_Label_Reprocessor( $this );
 
 		// Register background processor hooks early (before 'init')
 		$this->background_processor->register_hooks();
+		$this->label_reprocessor->register_hooks();
 
 		add_action( 'init', [ $this, 'load' ], 20 );
 	}
@@ -115,6 +126,17 @@ class Nuclia_Plugin {
 	 */
 	public function get_background_processor(): Nuclia_Background_Processor {
 		return $this->background_processor;
+	}
+
+	/**
+	 * Get the Nuclia_Label_Reprocessor.
+	 *
+	 * @since  1.4.0
+	 *
+	 * @return Nuclia_Label_Reprocessor
+	 */
+	public function get_label_reprocessor(): Nuclia_Label_Reprocessor {
+		return $this->label_reprocessor;
 	}
 
 	/**
@@ -288,6 +310,11 @@ class Nuclia_Plugin {
 			[
 				'nonce' => wp_create_nonce( 'nuclia_reindex_nonce' ),
 				'labelsNonce' => wp_create_nonce( 'nuclia_labels_nonce' ),
+				'i18n' => [
+					'confirmReprocess' => __( 'This will update labels for %d synced resource(s) with the current taxonomy mapping. Continue?', 'progress-agentic-rag' ),
+					'copied' => __( 'Copied!', 'progress-agentic-rag' ),
+					'copyFailed' => __( 'Copy failed', 'progress-agentic-rag' ),
+				],
 			]
 		);
 

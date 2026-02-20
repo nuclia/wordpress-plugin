@@ -74,6 +74,11 @@ class Nuclia_Admin_Page_Settings {
 		add_action( 'wp_ajax_nuclia_get_indexing_status', [ $this, 'ajax_get_indexing_status' ] );
 		add_action( 'wp_ajax_nuclia_get_labelset_labels', [ $this, 'ajax_get_labelset_labels' ] );
 		add_action( 'wp_ajax_nuclia_clear_synced_files', [ $this, 'ajax_clear_synced_files' ] );
+
+		// AJAX handlers for label reprocessing
+		add_action( 'wp_ajax_nuclia_reprocess_labels', [ $this, 'ajax_reprocess_labels' ] );
+		add_action( 'wp_ajax_nuclia_cancel_reprocess_labels', [ $this, 'ajax_cancel_reprocess_labels' ] );
+		add_action( 'wp_ajax_nuclia_get_reprocess_status', [ $this, 'ajax_get_reprocess_status' ] );
 	}
 
 	/**
@@ -579,6 +584,63 @@ class Nuclia_Admin_Page_Settings {
 		}
 
 		echo '</div>';
+
+		// Add label reprocessing section
+		if ( $settings->get_api_is_reachable() ) {
+			$indexed_count = $this->count_all_indexed_posts();
+			$reprocess_status = $this->plugin->get_label_reprocessor()->get_status();
+
+			echo '<div class="nuclia-label-reprocess-section pl-nuclia-section-card" style="margin-top: 20px;">';
+			echo '<h4>' . esc_html__( 'Label Reprocessing', 'progress-agentic-rag' ) . '</h4>';
+			echo '<p class="description">' . esc_html__( 'When you change the taxonomy-to-label mappings above, existing synced resources do not automatically get their labels updated. Use this to reprocess all synced resources with the new label mappings (no file re-upload required).', 'progress-agentic-rag' ) . '</p>';
+
+			echo '<p>';
+			echo '<strong>' . esc_html__( 'Synced resources:', 'progress-agentic-rag' ) . '</strong> ';
+			echo '<span id="nuclia-synced-count">' . esc_html( $indexed_count ) . '</span>';
+			echo '</p>';
+
+			// Status display
+			echo '<div class="nuclia-reprocess-status">';
+			if ( $reprocess_status['is_active'] ) {
+				echo '<p>';
+				echo '<span class="spinner is-active pl-nuclia-inline-spinner"></span> ';
+				echo '<span id="nuclia-reprocess-pending">' . sprintf( esc_html__( '%d pending', 'progress-agentic-rag' ), $reprocess_status['pending'] ) . '</span>';
+				echo ' | <span id="nuclia-reprocess-running">' . sprintf( esc_html__( '%d running', 'progress-agentic-rag' ), $reprocess_status['running'] ) . '</span>';
+				if ( $reprocess_status['failed'] > 0 ) {
+					echo ' | <span id="nuclia-reprocess-failed" class="pl-nuclia-error">' . sprintf( esc_html__( '%d failed', 'progress-agentic-rag' ), $reprocess_status['failed'] ) . '</span>';
+				}
+				echo '</p>';
+				echo '<p>';
+				echo '<button type="button" class="button nuclia-cancel-reprocess-button" data-nonce="' . esc_attr( wp_create_nonce( 'nuclia_labels_nonce' ) ) . '">';
+				echo esc_html__( 'Cancel Reprocessing', 'progress-agentic-rag' );
+				echo '</button>';
+				echo '</p>';
+			} else {
+				echo '<p id="nuclia-reprocess-actions">';
+				if ( $indexed_count > 0 ) {
+					echo '<button type="button" class="button button-primary nuclia-reprocess-button" data-nonce="' . esc_attr( wp_create_nonce( 'nuclia_labels_nonce' ) ) . '">';
+					echo esc_html__( 'Reprocess All Labels', 'progress-agentic-rag' );
+					echo '</button>';
+				} else {
+					echo '<em>' . esc_html__( 'No synced resources to reprocess.', 'progress-agentic-rag' ) . '</em>';
+				}
+				echo '</p>';
+			}
+			echo '</div>';
+
+			echo '</div>';
+		}
+	}
+
+	/**
+	 * Count all indexed posts across all post types.
+	 *
+	 * @since 1.4.0
+	 *
+	 * @return int
+	 */
+	private function count_all_indexed_posts(): int {
+		return count( $this->plugin->get_api()->get_all_indexed_posts() );
 	}
 
 	/**
@@ -1064,39 +1126,6 @@ class Nuclia_Admin_Page_Settings {
 	 * @since  1.0.0
 	 */
 	public function print_settings_section(): void {
-		$features_all = 'navigateToLink,answers,rephrase,filter,suggestions,autocompleteFromNERs,llmCitations,hideResults';
-		$settings = $this->plugin->get_settings();
-		$zone = $settings->get_zone() ?: 'your-zone';
-		$kbid = $settings->get_kbid() ?: 'your-kbid';
-
-		$shortcode_basic = sprintf(
-			'[agentic_rag_searchbox]'
-		);
-		$shortcode_full_features = sprintf(
-			'[agentic_rag_searchbox features="%1$s"]',
-			esc_attr( $features_all )
-		);
-		$shortcode_proxy = sprintf(
-			'[agentic_rag_searchbox features="%1$s" proxy="true"]',
-			esc_attr( $features_all )
-		);
-		$shortcode_show_config = sprintf(
-			'[agentic_rag_searchbox show_config="true"]'
-		);
-		$shortcode_custom_zone = sprintf(
-			'[agentic_rag_searchbox zone="%1$s"]',
-			esc_attr( $zone )
-		);
-		$shortcode_custom_kbid = sprintf(
-			'[agentic_rag_searchbox kbid="%1$s"]',
-			esc_attr( $kbid )
-		);
-		$shortcode_custom_zone_kbid = sprintf(
-			'[agentic_rag_searchbox zone="%1$s" kbid="%2$s"]',
-			esc_attr( $zone ),
-			esc_attr( $kbid )
-		);
-
 		echo '<style>
 			.pl-nuclia-docs{margin:16px 0 22px;border:1px solid #dcdcde;border-radius:10px;background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);overflow:hidden}
 			.pl-nuclia-docs__header{padding:16px 18px;border-bottom:1px solid #e6edf5;background:#f0f6fc}
@@ -1112,13 +1141,17 @@ class Nuclia_Admin_Page_Settings {
 			.pl-nuclia-features{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
 			.pl-nuclia-feature{display:inline-block;padding:2px 8px;border-radius:999px;background:#eff6ff;color:#1d4e89;border:1px solid #bfdbfe;font-size:12px;line-height:1.5}
 			.pl-nuclia-example-caption{margin:14px 0 6px;color:#344054;font-weight:600}
-			.pl-nuclia-code{margin:14px 0 0;padding:8px 10px;border-radius:8px;background:#111827;color:#f9fafb;overflow:auto;max-width:860px}
+			.pl-nuclia-code{margin:14px 0 0;padding:8px 10px;border-radius:8px;background:#111827;color:#f9fafb;overflow:auto;max-width:860px;position:relative}
 			.pl-nuclia-code code{background:transparent;color:inherit;padding:0;white-space:nowrap;font-size:12px}
+			.pl-nuclia-muted{color:#50575e;font-size:12px}
+			.pl-nuclia-copy-btn{position:absolute;top:6px;right:6px;padding:4px 8px;font-size:11px;background:#374151;color:#f9fafb;border:none;border-radius:4px;cursor:pointer;opacity:0.7;transition:opacity .2s}
+			.pl-nuclia-copy-btn:hover{opacity:1;background:#4b5563}
+			.pl-nuclia-copy-btn:active{background:#6b7280}
 		</style>';
 
 		echo '<div class="pl-nuclia-docs">';
 		echo '<div class="pl-nuclia-docs__header">';
-		echo '<h3 class="pl-nuclia-docs__title">' . esc_html__( 'Progress Agentic RAG setup and shortcode guide', 'progress-agentic-rag' ) . '</h3>';
+		echo '<h3 class="pl-nuclia-docs__title">' . esc_html__( 'Progress Agentic RAG setup guide', 'progress-agentic-rag' ) . '</h3>';
 		echo '<p class="pl-nuclia-docs__subtitle">' . wp_kses_post(
 			sprintf(
 				__(
@@ -1136,51 +1169,87 @@ class Nuclia_Admin_Page_Settings {
 		echo '<h4>' . esc_html__( '1) Connect your account', 'progress-agentic-rag' ) . '</h4>';
 		echo '<p>' . esc_html__( 'After you save your zone, knowledge box ID, account ID, and API key, the plugin validates them against Progress Agentic RAG servers to ensure everything is correct.', 'progress-agentic-rag' ) . '</p>';
 		echo '</div>';
+		// Configure Widgets section
 		echo '<div class="pl-nuclia-card">';
-		echo '<h4>' . esc_html__( '2) Display the search experience', 'progress-agentic-rag' ) . '</h4>';
-		echo '<ul class="pl-nuclia-meta-list">';
-		echo '<li>' . esc_html__( 'Widget: Add the Progress Agentic RAG Searchbox widget in any widget area.', 'progress-agentic-rag' ) . '</li>';
-		echo '<li>' . esc_html__( 'Shortcode: Paste one of the shortcodes below into a page, post, or block.', 'progress-agentic-rag' ) . '</li>';
-		echo '</ul>';
+		echo '<h4>' . esc_html__( '2) Configure your search widget', 'progress-agentic-rag' ) . '</h4>';
+		echo '<p>' . esc_html__( 'Visit the Progress Agentic RAG dashboard to configure and customize your search widget. Go to the Widgets section to generate embed code for your site.', 'progress-agentic-rag' ) . '</p>';
+		echo '<a href="https://rag.progress.cloud" target="_blank" class="button button-primary" style="margin-top: 8px;">';
+		echo esc_html__( 'Open Progress Agentic RAG Dashboard', 'progress-agentic-rag' );
+		echo '</a>';
+		echo '</div>';
+		echo '</div>';
 		echo '</div>';
 		echo '</div>';
 
-		echo '<h3>' . esc_html__( 'Shortcode', 'progress-agentic-rag' ) . '</h3>';
-		echo '<p>' . esc_html__( 'No required attributes. Zone and KB ID default to your saved plugin settings.', 'progress-agentic-rag' ) . '</p>';
-		echo '<ul class="pl-nuclia-meta-list">';
-		echo '<li><code>zone</code>: ' . esc_html__( 'Optional override. If omitted, the shortcode uses the Zone from plugin settings.', 'progress-agentic-rag' ) . '</li>';
-		echo '<li><code>kbid</code>: ' . esc_html__( 'Optional override. If omitted, the shortcode uses the Knowledge Box ID from plugin settings.', 'progress-agentic-rag' ) . '</li>';
-		echo '<li><code>show_config</code>: ' . esc_html__( 'Set to true to show the search configuration selector above the search box. Default: false (selector hidden).', 'progress-agentic-rag' ) . '</li>';
-		echo '<li><code>features</code>: ' . esc_html__( 'Comma-separated list of enabled features. Default: navigateToLink.', 'progress-agentic-rag' ) . '</li>';
-		echo '<li><code>proxy</code>: ' . esc_html__( 'Set to true to route requests through your WordPress proxy endpoint. Default: false (direct requests).', 'progress-agentic-rag' ) . '</li>';
-		echo '</ul>';
-		echo '<div class="pl-nuclia-features">';
-		echo '<span class="pl-nuclia-feature">navigateToLink</span>';
-		echo '<span class="pl-nuclia-feature">answers</span>';
-		echo '<span class="pl-nuclia-feature">rephrase</span>';
-		echo '<span class="pl-nuclia-feature">filter</span>';
-		echo '<span class="pl-nuclia-feature">suggestions</span>';
-		echo '<span class="pl-nuclia-feature">autocompleteFromNERs</span>';
-		echo '<span class="pl-nuclia-feature">llmCitations</span>';
-		echo '<span class="pl-nuclia-feature">hideResults</span>';
-		echo '</div>';
+		// Embed code instructions section
+		$settings = $this->plugin->get_settings();
+		$zone = $settings->get_zone();
+		$proxy_url = $zone ? nuclia_proxy_url( $zone ) : '';
 
-		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Use defaults from plugin settings (simplest setup):', 'progress-agentic-rag' ) . '</p>';
-		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_basic ) . '</code></div>';
-		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Enable a full feature set while still using saved Zone and KB ID:', 'progress-agentic-rag' ) . '</p>';
-		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_full_features ) . '</code></div>';
-		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Route requests through your WordPress proxy endpoint:', 'progress-agentic-rag' ) . '</p>';
-		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_proxy ) . '</code></div>';
-		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Show the search configuration selector dropdown:', 'progress-agentic-rag' ) . '</p>';
-		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_show_config ) . '</code></div>';
-		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Override only the Zone for this page:', 'progress-agentic-rag' ) . '</p>';
-		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_custom_zone ) . '</code></div>';
-		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Override only the Knowledge Box ID for this page:', 'progress-agentic-rag' ) . '</p>';
-		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_custom_kbid ) . '</code></div>';
-		echo '<p class="pl-nuclia-example-caption">' . esc_html__( 'Override both Zone and Knowledge Box ID:', 'progress-agentic-rag' ) . '</p>';
-		echo '<div class="pl-nuclia-code"><code>' . esc_html( $shortcode_custom_zone_kbid ) . '</code></div>';
-		echo '</div>';
-		echo '</div>';
+		if ( $proxy_url && $settings->get_api_is_reachable() ) {
+			echo '<div class="pl-nuclia-docs" style="margin-top: 20px;">';
+			echo '<div class="pl-nuclia-docs__header">';
+			echo '<h3 class="pl-nuclia-docs__title">' . esc_html__( 'Using the Search Widget', 'progress-agentic-rag' ) . '</h3>';
+			echo '<p class="pl-nuclia-docs__subtitle">' . esc_html__( 'Copy the embed code from your dashboard, then modify it to use your WordPress proxy. This keeps your API token secure on the server.', 'progress-agentic-rag' ) . '</p>';
+			echo '</div>';
+			echo '<div class="pl-nuclia-docs__body">';
+
+			echo '<div class="pl-nuclia-card" style="margin-bottom: 16px;">';
+			echo '<h4>' . esc_html__( 'Step 1: Copy from Dashboard', 'progress-agentic-rag' ) . '</h4>';
+			echo '<p>' . esc_html__( 'In the Progress Agentic RAG dashboard, go to Widgets and copy the embed code. It will look like this:', 'progress-agentic-rag' ) . '</p>';
+			echo '<div class="pl-nuclia-code" style="max-height: 180px; overflow-y: auto;"><code style="white-space: pre-wrap; word-break: break-all;">&lt;script src="https://cdn.rag.progress.cloud/nuclia-widget.umd.js"&gt;&lt;/script&gt;
+&lt;nuclia-search-bar
+  knowledgebox="your-kbid"
+  zone="' . esc_attr( $zone ) . '"
+  apikey="YOUR_API_TOKEN"
+  features="answers,rephrase,filter,suggestions"
+  ...
+&gt;&lt;/nuclia-search-bar&gt;
+&lt;nuclia-search-results&gt;&lt;/nuclia-search-results&gt;</code></div>';
+			echo '</div>';
+
+			echo '<div class="pl-nuclia-card" style="margin-bottom: 16px;">';
+			echo '<h4>' . esc_html__( 'Step 2: Replace the API Key', 'progress-agentic-rag' ) . '</h4>';
+			echo '<p>' . esc_html__( 'Replace the apikey attribute with backend and proxy attributes. Your proxy URL is:', 'progress-agentic-rag' ) . '</p>';
+			echo '<div class="pl-nuclia-code" style="margin: 8px 0;"><code>' . esc_html( $proxy_url ) . '</code></div>';
+			echo '<p>' . esc_html__( 'Change this:', 'progress-agentic-rag' ) . '</p>';
+			echo '<div class="pl-nuclia-code"><code>apikey="YOUR_API_TOKEN"</code></div>';
+			echo '<p style="margin-top: 8px;">' . esc_html__( 'To this:', 'progress-agentic-rag' ) . '</p>';
+
+			$replacement_code = 'backend="' . $proxy_url . '" proxy="true"';
+			echo '<div class="pl-nuclia-code" id="nuclia-replacement-code" style="padding-right: 70px;">';
+			echo '<button type="button" class="pl-nuclia-copy-btn" data-copy-text="' . esc_attr( $replacement_code ) . '">' . esc_html__( 'Copy', 'progress-agentic-rag' ) . '</button>';
+			echo '<code>' . esc_html( $replacement_code ) . '</code></div>';
+			echo '</div>';
+
+			echo '<div class="pl-nuclia-card">';
+			echo '<h4>' . esc_html__( 'Step 3: Final Code', 'progress-agentic-rag' ) . '</h4>';
+			echo '<p>' . esc_html__( 'Your modified embed code:', 'progress-agentic-rag' ) . '</p>';
+
+			$final_code = '<script src="https://cdn.rag.progress.cloud/nuclia-widget.umd.js"></script>
+<nuclia-search-bar
+  knowledgebox="your-kbid"
+  zone="' . $zone . '"
+  backend="' . $proxy_url . '"
+  proxy="true"
+  features="answers,rephrase,filter,suggestions"
+  ...
+></nuclia-search-bar>
+<nuclia-search-results></nuclia-search-results>';
+
+			echo '<div class="pl-nuclia-code" id="nuclia-final-code" style="max-height: 200px; overflow-y: auto; padding-right: 70px;">';
+			echo '<button type="button" class="pl-nuclia-copy-btn" data-copy-target="nuclia-final-code">' . esc_html__( 'Copy', 'progress-agentic-rag' ) . '</button>';
+			echo '<code style="white-space: pre-wrap; word-break: break-all;">' . esc_html( $final_code ) . '</code></div>';
+
+			echo '<p style="margin-top: 12px;" class="pl-nuclia-muted">';
+			echo '<span class="dashicons dashicons-shield-alt" style="color: #2271b1;"></span> ';
+			echo esc_html__( 'Your API token stays on the server. All requests are proxied through your WordPress site, which adds authentication server-side.', 'progress-agentic-rag' );
+			echo '</p>';
+			echo '</div>';
+
+			echo '</div>';
+			echo '</div>';
+		}
 
 		echo '<h3>'. esc_html__("Your Progress Agentic RAG credentials", 'progress-agentic-rag').'</h3>';
 	}
@@ -1329,6 +1398,74 @@ class Nuclia_Admin_Page_Settings {
 
 		wp_send_json_success( [
 			'message' => __( 'Synced files cache cleared successfully. All posts will need to be re-synced.', 'progress-agentic-rag' ),
+		] );
+	}
+
+	/**
+	 * AJAX handler to start label reprocessing.
+	 *
+	 * @since 1.4.0
+	 */
+	public function ajax_reprocess_labels(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( 'Unauthorized', 403 );
+		}
+
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'nuclia_labels_nonce' ) ) {
+			wp_send_json_error( 'Invalid nonce', 403 );
+		}
+
+		$scheduled_count = $this->plugin->get_label_reprocessor()->schedule_full_reprocess();
+
+		wp_send_json_success( [
+			'message'        => sprintf(
+				/* translators: %d is the number of posts scheduled */
+				_n( 'Scheduled label update for %d post.', 'Scheduled label updates for %d posts.', $scheduled_count, 'progress-agentic-rag' ),
+				$scheduled_count
+			),
+			'scheduled'      => $scheduled_count,
+			'reprocessStatus' => $this->plugin->get_label_reprocessor()->get_status(),
+		] );
+	}
+
+	/**
+	 * AJAX handler to cancel label reprocessing.
+	 *
+	 * @since 1.4.0
+	 */
+	public function ajax_cancel_reprocess_labels(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( 'Unauthorized', 403 );
+		}
+
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'nuclia_labels_nonce' ) ) {
+			wp_send_json_error( 'Invalid nonce', 403 );
+		}
+
+		$this->plugin->get_label_reprocessor()->cancel_all();
+
+		wp_send_json_success( [
+			'message' => __( 'Label reprocessing cancelled.', 'progress-agentic-rag' ),
+			'reprocessStatus' => $this->plugin->get_label_reprocessor()->get_status(),
+		] );
+	}
+
+	/**
+	 * AJAX handler to get label reprocessing status.
+	 *
+	 * @since 1.4.0
+	 */
+	public function ajax_get_reprocess_status(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( 'Unauthorized', 403 );
+		}
+
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'nuclia_labels_nonce' ) ) {
+			wp_send_json_error( 'Invalid nonce', 403 );
+		}
+
+		wp_send_json_success( [
+			'reprocessStatus' => $this->plugin->get_label_reprocessor()->get_status(),
 		] );
 	}
 
