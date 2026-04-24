@@ -14,6 +14,7 @@ add_action( 'rest_api_init', 'nuclia_register_proxy_rest_routes' );
 add_action( 'init', 'nuclia_proxy_add_rewrite_rules' );
 add_filter( 'query_vars', 'nuclia_proxy_query_vars' );
 add_action( 'template_redirect', 'nuclia_proxy_path_handler' );
+add_filter( 'rest_pre_serve_request', 'nuclia_proxy_force_rest_preflight_cors_headers', 1000, 4 );
 
 // Disable canonical redirects for proxy URLs (fixes 301 trailing slash issue)
 add_filter( 'redirect_canonical', function( $redirect_url, $request_url ) {
@@ -53,6 +54,89 @@ add_action( 'template_redirect', function() {
 		@ini_set( 'implicit_flush', 'On' );
 	}
 }, -1 );
+
+/**
+ * Return a comma-separated list of headers allowed for CORS preflight.
+ *
+ * @return string
+ */
+function nuclia_proxy_cors_allow_headers_value(): string {
+	return implode(
+		', ',
+		[
+			'Content-Type',
+			'Authorization',
+			'X-Requested-With',
+			'x-synchronous',
+			'X-Synchronous',
+			'Nuclia-Learning-Id',
+			'x-ndb-client',
+			'X-NDB-Client',
+		]
+	);
+}
+
+/**
+ * Emit CORS headers for proxy routes.
+ */
+function nuclia_proxy_send_cors_headers(): void {
+	if ( headers_sent() ) {
+		return;
+	}
+
+	$origin = isset( $_SERVER['HTTP_ORIGIN'] ) ? sanitize_text_field( (string) $_SERVER['HTTP_ORIGIN'] ) : '';
+	if ( $origin !== '' ) {
+		header( 'Access-Control-Allow-Origin: ' . $origin );
+		header( 'Vary: Origin', false );
+	} else {
+		header( 'Access-Control-Allow-Origin: *' );
+	}
+
+	header( 'Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS' );
+	header( 'Access-Control-Allow-Headers: ' . nuclia_proxy_cors_allow_headers_value() );
+}
+
+/**
+ * Emit strict preflight CORS headers for the Nuclia REST proxy route.
+ */
+function nuclia_proxy_send_rest_preflight_cors_headers(): void {
+	if ( headers_sent() ) {
+		return;
+	}
+
+	$origin = isset( $_SERVER['HTTP_ORIGIN'] ) ? sanitize_text_field( (string) $_SERVER['HTTP_ORIGIN'] ) : '';
+	if ( $origin !== '' ) {
+		header( 'Access-Control-Allow-Origin: ' . $origin, true );
+	} else {
+		header( 'Access-Control-Allow-Origin: *', true );
+	}
+
+	header( 'Access-Control-Allow-Methods: GET, POST, OPTIONS', true );
+	header( 'Access-Control-Allow-Headers: ' . nuclia_proxy_cors_allow_headers_value(), true );
+	header( 'Access-Control-Expose-Headers: X-Nuclia-Upstream-Status, X-Nuclia-Upstream-Content-Type, Nuclia-Learning-Id, X-NUCLIA-TRACE-ID', true );
+	header( 'Vary: Origin', true );
+	header( 'Access-Control-Max-Age: 86400', true );
+}
+
+/**
+ * Override default WordPress REST CORS headers for Nuclia proxy preflight.
+ *
+ * @param bool             $served  Whether the request has already been served.
+ * @param WP_HTTP_Response $result  Result to send to the client.
+ * @param WP_REST_Request  $request Request used to generate the response.
+ * @param WP_REST_Server   $server  Server instance.
+ * @return bool
+ */
+function nuclia_proxy_force_rest_preflight_cors_headers( $served, $result, WP_REST_Request $request, WP_REST_Server $server ): bool {
+	$route = (string) $request->get_route();
+	$method = strtoupper( (string) $request->get_method() );
+
+	if ( $method === 'OPTIONS' && str_starts_with( $route, '/progress-agentic-rag/v1/nuclia' ) ) {
+		nuclia_proxy_send_rest_preflight_cors_headers();
+	}
+
+	return $served;
+}
 
 /**
  * Return the path-only proxy URL for the Nuclia widget (no query string).
@@ -119,6 +203,7 @@ function nuclia_proxy_path_handler(): void {
 
 	$zone = sanitize_title( $zone );
 	$path = is_string( $path ) ? ltrim( $path, '/' ) : '';
+	nuclia_proxy_send_cors_headers();
 
 	$method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( (string) $_SERVER['REQUEST_METHOD'] ) : 'GET';
 	$query_params = isset( $_GET ) && is_array( $_GET ) ? $_GET : [];
@@ -158,6 +243,7 @@ function nuclia_proxy_extract_passthrough_headers_from_server(): array {
 	$allowed = [
 		'x-synchronous',
 		'x-show-consumption',
+		'x-ndb-client',
 	];
 
 	$headers = [];
@@ -184,6 +270,7 @@ function nuclia_proxy_extract_passthrough_headers_from_request( WP_REST_Request 
 	$allowed = [
 		'x-synchronous',
 		'x-show-consumption',
+		'x-ndb-client',
 	];
 
 	$headers = [];
@@ -269,6 +356,7 @@ function nuclia_register_proxy_rest_routes(): void {
 function nuclia_proxy_stream_with_curl( string $remote_url, string $method, string $token, array $request_headers = [], string $request_body = '' ): void {
 	$ch = curl_init( $remote_url );
 	$method = strtoupper( $method );
+	nuclia_proxy_send_cors_headers();
 
 	// Track if we have processed headers yet
 	$headers_processed = false;
@@ -285,8 +373,12 @@ function nuclia_proxy_stream_with_curl( string $remote_url, string $method, stri
 	$header_callback = function( $ch, $header_line ) use ( &$response_headers, &$http_status ) {
 		$len = strlen( $header_line );
 
-		// Handle status line (e.g., "HTTP/1.1 200 OK")
-		if ( preg_match( '#^HTTP/\d\.\d+\s+(\d+)#', $header_line, $matches ) ) {
+		// Upstream may respond over HTTP/2, so status parsing must support both
+		// HTTP/1.x and HTTP/2 status lines.
+		if ( preg_match( '#^HTTP/(?:\d(?:\.\d+)?)\s+(\d+)#', $header_line, $matches ) ) {
+			// Upstream can emit multiple header blocks (redirects/intermediate responses).
+			// Reset captured headers on each new status line so final status/headers win.
+			$response_headers = [];
 			$http_status = (int) $matches[1];
 			return $len;
 		}
@@ -349,9 +441,18 @@ function nuclia_proxy_stream_with_curl( string $remote_url, string $method, stri
 		if ( ! $headers_processed ) {
 			$headers_processed = true;
 
-			// Send HTTP status
+			// Status must be fixed before any body bytes are echoed/flushed, or clients
+			// may keep the default 200 even when upstream returned an error status.
+			http_response_code( $http_status );
 			status_header( $http_status );
 			header( 'X-Accel-Buffering: no' );
+			// Debug visibility headers: expose upstream metadata without changing payload
+			// shape consumed by the widget/client JSON contract.
+			header( 'X-Nuclia-Upstream-Status: ' . (string) $http_status );
+			$upstream_content_type = (string) ( $response_headers['Content-Type'] ?? $response_headers['content-type'] ?? '' );
+			if ( $upstream_content_type !== '' ) {
+				header( 'X-Nuclia-Upstream-Content-Type: ' . $upstream_content_type );
+			}
 
 			// Forward relevant response headers to client
 			foreach ( $response_headers as $name => $value ) {
@@ -403,6 +504,7 @@ function nuclia_proxy_stream_with_curl( string $remote_url, string $method, stri
 
 	// Handle cURL errors before sending any success headers.
 	if ( $error !== '' ) {
+		nuclia_proxy_send_cors_headers();
 		status_header( 502 );
 		header( 'Content-Type: application/json' );
 		echo wp_json_encode( [ 'error' => 'cURL error: ' . $error ] );
@@ -411,8 +513,16 @@ function nuclia_proxy_stream_with_curl( string $remote_url, string $method, stri
 
 	// Some responses can be valid but contain no body (e.g. HEAD or 204).
 	if ( ! $headers_processed ) {
+		http_response_code( $http_status );
 		status_header( $http_status );
 		header( 'X-Accel-Buffering: no' );
+		// Debug visibility headers: expose upstream metadata without changing payload
+		// shape consumed by the widget/client JSON contract.
+		header( 'X-Nuclia-Upstream-Status: ' . (string) $http_status );
+		$upstream_content_type = (string) ( $response_headers['Content-Type'] ?? $response_headers['content-type'] ?? '' );
+		if ( $upstream_content_type !== '' ) {
+			header( 'X-Nuclia-Upstream-Content-Type: ' . $upstream_content_type );
+		}
 		foreach ( $response_headers as $name => $value ) {
 			$lower = strtolower( $name );
 			if ( in_array( $lower, $skip_headers, true ) ) {
@@ -504,7 +614,7 @@ function nuclia_proxy_execute( string $zone, string $path, string $method, array
 
 	// Detect endpoints that require direct streaming to preserve chunk boundaries.
 	$should_stream_download = str_contains( $normalized_path, '/download/' );
-	$should_stream_ask = nuclia_proxy_should_stream_ask( $method, $normalized_path, $passthrough_headers );
+	$is_ask_endpoint = (bool) preg_match( '#/ask/?$#', $normalized_path );
 
 	// For download endpoints, use raw cURL for true streaming (bypasses temp file)
 	// Note: This function calls exit() and never returns
@@ -557,8 +667,10 @@ function nuclia_proxy_execute( string $zone, string $path, string $method, array
 		// Never reaches here due to exit() in stream function
 	}
 
-	// /ask returns ndjson chunks that must be relayed incrementally.
-	if ( $should_stream_ask ) {
+	// /ask may return regular JSON or streamed/chunked output. Buffering through
+	// wp_remote_request() can corrupt or truncate proxy responses, so always use
+	// the cURL passthrough streaming path for /ask endpoints.
+	if ( $is_ask_endpoint ) {
 		$stream_headers = [
 			'Content-Type' => $content_type !== '' ? $content_type : 'application/json',
 			'Accept' => ( $accept !== '' && $accept !== '*/*' ) ? $accept : 'application/x-ndjson',
@@ -645,6 +757,19 @@ function nuclia_proxy_execute( string $zone, string $path, string $method, array
  * @return WP_REST_Response|WP_Error
  */
 function nuclia_proxy_rest_handler( WP_REST_Request $request ) {
+	nuclia_proxy_send_cors_headers();
+	if ( strtoupper( (string) $request->get_method() ) === 'OPTIONS' ) {
+		nuclia_proxy_send_rest_preflight_cors_headers();
+		$preflight = new WP_REST_Response( null, 200 );
+		$preflight->header( 'Access-Control-Allow-Origin', isset( $_SERVER['HTTP_ORIGIN'] ) ? sanitize_text_field( (string) $_SERVER['HTTP_ORIGIN'] ) : '*' );
+		$preflight->header( 'Access-Control-Allow-Methods', 'GET, POST, OPTIONS' );
+		$preflight->header( 'Access-Control-Allow-Headers', nuclia_proxy_cors_allow_headers_value() );
+		$preflight->header( 'Access-Control-Expose-Headers', 'X-Nuclia-Upstream-Status, X-Nuclia-Upstream-Content-Type, Nuclia-Learning-Id, X-NUCLIA-TRACE-ID' );
+		$preflight->header( 'Vary', 'Origin' );
+		$preflight->header( 'Access-Control-Max-Age', '86400' );
+		return $preflight;
+	}
+
 	$zone = sanitize_title( (string) $request['zone'] );
 	$path = (string) $request['path'];
 
@@ -691,6 +816,7 @@ function nuclia_proxy_rest_handler( WP_REST_Request $request ) {
 			if ( $response !== $rest_response ) {
 				return $served;
 			}
+			nuclia_proxy_send_cors_headers();
 			if ( ! headers_sent() ) {
 				status_header( $proxy_result['status'] );
 				foreach ( $proxy_result['headers'] as $name => $value ) {
