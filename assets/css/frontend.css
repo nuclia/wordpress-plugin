@@ -1,0 +1,13 @@
+.progress-agentic-rag-search-widget {
+	box-sizing: border-box;
+	margin: 0 auto 2rem;
+	max-width: 72rem;
+	padding: 1.5rem;
+	width: 100%;
+}
+
+.progress-agentic-rag-search-widget *,
+.progress-agentic-rag-search-widget *::before,
+.progress-agentic-rag-search-widget *::after {
+	box-sizing: border-box;
+}

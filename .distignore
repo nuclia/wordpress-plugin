@@ -1,0 +1,10 @@
+/docker
+/tests
+/node_modules
+/vendor
+/package.json
+/package-lock.json
+/phpunit.xml.dist
+/playwright.config.ts
+/.git
+/.github
