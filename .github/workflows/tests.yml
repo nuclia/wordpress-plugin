@@ -1,14 +1,7 @@
 name: Tests
 
 on:
-  push:
-    branches:
-      - develop-v2
-      - main
   pull_request:
-    branches:
-      - develop-v2
-      - main
   workflow_dispatch:
 permissions:
   contents: read

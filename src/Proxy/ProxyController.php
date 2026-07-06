@@ -111,7 +111,7 @@ final class ProxyController {
 	 * @return array{status: int, headers: array<string,string>, body: string}
 	 */
 	private function execute( string $zone, string $path, string $method, string $query_string, string $content_type, string $accept, string $body, array $passthrough_headers ): array {
-		$zone = sanitize_title( $zone );
+		$zone = strtolower( trim( $zone ) );
 		if ( '' === $zone || ! preg_match( '/^[a-z0-9-]+$/', $zone ) ) {
 			return $this->error( 400, 'progress_agentic_rag_proxy_invalid_zone', __( 'Invalid Progress Agentic RAG zone.', 'progress-agentic-rag' ) );
 		}
@@ -188,10 +188,13 @@ final class ProxyController {
 	 */
 	private function path_request(): array {
 		if ( '1' === get_query_var( self::QUERY_VAR_ENABLED, '' ) ) {
-			return [
-				'zone' => sanitize_title( (string) get_query_var( self::QUERY_VAR_ZONE, '' ) ),
-				'path' => ltrim( (string) get_query_var( self::QUERY_VAR_PATH, '' ), '/' ),
-			];
+			$zone = (string) get_query_var( self::QUERY_VAR_ZONE, '' );
+			if ( '' !== $zone ) {
+				return [
+					'zone' => $zone,
+					'path' => ltrim( (string) get_query_var( self::QUERY_VAR_PATH, '' ), '/' ),
+				];
+			}
 		}
 
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
@@ -212,7 +215,7 @@ final class ProxyController {
 		$parts  = explode( '/', $suffix, 2 );
 
 		return [
-			'zone' => sanitize_title( $parts[0] ?? '' ),
+			'zone' => (string) ( $parts[0] ?? '' ),
 			'path' => isset( $parts[1] ) ? ltrim( $parts[1], '/' ) : '',
 		];
 	}

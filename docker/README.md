@@ -26,11 +26,11 @@ Run `npm ci` from the plugin root after dependency changes.
 
 ## WordPress.org deployment
 
-The GitHub Actions deployment workflow publishes to WordPress.org SVN only from numeric release tags that point to `main`, for example `0.1.0`. Do not use a `v` prefix.
+The GitHub Actions deployment workflow publishes to WordPress.org SVN on pushes to `main`. The workflow uses the numeric `x.y.z` version from `progress-agentic-rag.php` as the WordPress.org SVN tag.
 
-Pull requests targeting `main` run the `Tests` workflow only: PHP lint, PHPUnit, Playwright, release artifact creation, and release metadata validation. The deploy workflow does not run on pull requests.
+All pull requests run the `Tests` workflow only: PHP lint, PHPUnit, Playwright, release artifact creation, and release metadata validation. The deploy workflow does not run on pull requests.
 
-Configure these repository secrets before pushing a release tag:
+Configure these repository secrets before merging a release to `main`:
 
 ```text
 SVN_USERNAME
@@ -43,8 +43,7 @@ Release steps:
 git checkout main
 git pull --ff-only origin main
 # Update progress-agentic-rag.php, PROGRESS_AGENTIC_RAG_VERSION, readme.txt Stable tag, and the changelog heading to the same x.y.z version.
-git tag 0.1.0
-git push origin 0.1.0
+git push origin main
 ```
 
 To test the deployment pipeline without publishing, run `Deploy to WordPress.org SVN` manually from GitHub Actions. Manual runs execute the deployment checks and skip the SVN deploy step.
