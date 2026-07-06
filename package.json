@@ -6,7 +6,8 @@
     "test:e2e": "playwright test -c playwright.config.ts"
   },
   "devDependencies": {
-    "@playwright/test": "^1.45.0",
+    "@playwright/test": "1.61.0",
+    "@types/node": "^24.13.2",
     "typescript": "^5.5.0"
   }
 }

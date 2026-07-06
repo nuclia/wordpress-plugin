@@ -1,26 +1,45 @@
-name: Tests
+name: Deploy to WordPress.org SVN
 
 on:
   push:
-    branches:
-      - develop-v2
-      - main
-  pull_request:
-    branches:
-      - develop-v2
-      - main
-  workflow_dispatch:
+    tags:
+      - '*'
+
 permissions:
   contents: read
 
+concurrency:
+  group: wordpress-org-deploy
+  cancel-in-progress: false
+
 jobs:
-  test:
+  deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag
+        run: |
+          set -eu
+          if ! printf '%s\n' "${GITHUB_REF_NAME}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "WordPress.org release tags must use numeric x.y.z format without a v prefix: ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+      - name: Verify tag is on main
+        run: |
+          set -eu
+          git fetch origin main:refs/remotes/origin/main
+          release_commit="$(git rev-list -n 1 "${GITHUB_REF_NAME}")"
+          if ! git merge-base --is-ancestor "${release_commit}" refs/remotes/origin/main; then
+            echo "Release tag ${GITHUB_REF_NAME} must point to a commit contained in origin/main."
+            exit 1
+          fi
 
       - name: Show Docker versions
         run: |
@@ -91,7 +110,7 @@ jobs:
             mcr.microsoft.com/playwright:v1.61.0-noble \
             sh -c 'npm ci && sh docker/scripts/run-playwright.sh'
 
-      - name: Prepare release check fixture
+      - name: Prepare release artifact
         run: |
           rm -rf build/progress-agentic-rag
           mkdir -p build/progress-agentic-rag
@@ -111,4 +130,12 @@ jobs:
             --exclude 'playwright.config.ts'
 
       - name: Release artifact check
-        run: RELEASE_DIR=build/progress-agentic-rag docker compose -f docker/docker-compose.yml run --rm release-check
+        run: RELEASE_VERSION="${GITHUB_REF_NAME}" RELEASE_DIR=build/progress-agentic-rag docker compose -f docker/docker-compose.yml run --rm release-check
+
+      - name: Deploy to WordPress.org SVN
+        uses: 10up/action-wordpress-plugin-deploy@2.3.0
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          SLUG: progress-agentic-rag
+          BUILD_DIR: build/progress-agentic-rag

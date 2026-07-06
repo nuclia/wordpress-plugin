@@ -16,10 +16,11 @@ services:
     command: ["sh", "docker/scripts/run-phpunit.sh"]
 
   playwright:
-    image: mcr.microsoft.com/playwright:v1.45.3-jammy
+    image: mcr.microsoft.com/playwright:v1.61.0-noble
     working_dir: /plugin
     environment:
       WP_BASE_URL: ${WP_BASE_URL:-http://wordpress}
+      PROGRESS_AGENTIC_RAG_E2E_KEY: ${PROGRESS_AGENTIC_RAG_E2E_KEY:-progress-agentic-rag-e2e}
       PROGRESS_AGENTIC_RAG_TEST_TOKEN: ${PROGRESS_AGENTIC_RAG_TEST_TOKEN:-progress-agentic-rag-secret}
       PROGRESS_AGENTIC_RAG_DISABLE_SCHEDULER: ${PROGRESS_AGENTIC_RAG_DISABLE_SCHEDULER:-0}
     volumes:
@@ -29,6 +30,10 @@ services:
   release-check:
     image: php:8.1-cli
     working_dir: /plugin
+    environment:
+      RELEASE_DIR: ${RELEASE_DIR:-build/progress-agentic-rag}
+      RELEASE_VERSION: ${RELEASE_VERSION:-}
+      GITHUB_REF_NAME: ${GITHUB_REF_NAME:-}
     volumes:
       - ..:/plugin
     command: ["sh", "docker/scripts/check-release.sh"]

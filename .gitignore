@@ -60,7 +60,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-package-lock.json
 
 .npm/
 .pnpm-store/

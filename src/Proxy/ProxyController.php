@@ -219,8 +219,19 @@ final class ProxyController {
 
 	private function normalize_path( string $path ): ?string {
 		$path = ltrim( $path, '/' );
+		$decoded_path = rawurldecode( $path );
 
-		if ( '' === $path || str_contains( $path, '..' ) || str_contains( $path, '\\' ) || str_contains( $path, "\r" ) || str_contains( $path, "\n" ) ) {
+		if (
+			'' === $path
+			|| str_contains( $path, '..' )
+			|| str_contains( $decoded_path, '..' )
+			|| str_contains( $path, '\\' )
+			|| str_contains( $decoded_path, '\\' )
+			|| str_contains( $path, "\r" )
+			|| str_contains( $decoded_path, "\r" )
+			|| str_contains( $path, "\n" )
+			|| str_contains( $decoded_path, "\n" )
+		) {
 			return null;
 		}
 
