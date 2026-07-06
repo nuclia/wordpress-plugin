@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - '*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,15 +27,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate release tag
+      - name: Resolve release mode
         run: |
           set -eu
-          if ! printf '%s\n' "${GITHUB_REF_NAME}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "WordPress.org release tags must use numeric x.y.z format without a v prefix: ${GITHUB_REF_NAME}"
-            exit 1
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && printf '%s\n' "${GITHUB_REF}" | grep -Eq '^refs/tags/'; then
+            release_version="${GITHUB_REF_NAME}"
+            if ! printf '%s\n' "${release_version}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "WordPress.org release tags must use numeric x.y.z format without a v prefix: ${release_version}"
+              exit 1
+            fi
+            echo "Running WordPress.org SVN deployment for ${release_version}."
+          else
+            release_version="$(awk -F 'Version:[[:space:]]*' '/^[[:space:]]*\*[[:space:]]Version:/ { print $2; exit }' progress-agentic-rag.php | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+            if ! printf '%s\n' "${release_version}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "Plugin Version must use numeric x.y.z format for deployment dry runs: ${release_version}"
+              exit 1
+            fi
+            echo "Running WordPress.org deployment dry run for ${release_version}; SVN deploy will be skipped."
           fi
+          echo "RELEASE_VERSION=${release_version}" >> "${GITHUB_ENV}"
 
       - name: Verify tag is on main
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
         run: |
           set -eu
           git fetch origin main:refs/remotes/origin/main
@@ -130,9 +147,14 @@ jobs:
             --exclude 'playwright.config.ts'
 
       - name: Release artifact check
-        run: RELEASE_VERSION="${GITHUB_REF_NAME}" RELEASE_DIR=build/progress-agentic-rag docker compose -f docker/docker-compose.yml run --rm release-check
+        run: RELEASE_VERSION="${RELEASE_VERSION}" RELEASE_DIR=build/progress-agentic-rag docker compose -f docker/docker-compose.yml run --rm release-check
+
+      - name: Deployment dry run complete
+        if: ${{ github.event_name != 'push' || ! startsWith(github.ref, 'refs/tags/') }}
+        run: echo "Dry run complete; WordPress.org SVN deploy was skipped."
 
       - name: Deploy to WordPress.org SVN
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
         uses: 10up/action-wordpress-plugin-deploy@2.3.0
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
