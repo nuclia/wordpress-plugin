@@ -2,7 +2,7 @@
 set -eu
 
 release_dir="${RELEASE_DIR:-build/progress-agentic-rag}"
-expected_version="${RELEASE_VERSION:-${GITHUB_REF_NAME:-}}"
+expected_version="${RELEASE_VERSION:-}"
 main_file="$release_dir/progress-agentic-rag.php"
 readme_file="$release_dir/readme.txt"
 

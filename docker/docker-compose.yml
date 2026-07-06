@@ -33,7 +33,6 @@ services:
     environment:
       RELEASE_DIR: ${RELEASE_DIR:-build/progress-agentic-rag}
       RELEASE_VERSION: ${RELEASE_VERSION:-}
-      GITHUB_REF_NAME: ${GITHUB_REF_NAME:-}
     volumes:
       - ..:/plugin
     command: ["sh", "docker/scripts/check-release.sh"]
