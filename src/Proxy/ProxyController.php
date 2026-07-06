@@ -26,6 +26,7 @@ final class ProxyController {
 		add_action( 'init', [ self::class, 'add_rewrite_rules' ] );
 		add_action( 'init', [ self::class, 'maybe_flush_rewrite_rules' ], 20 );
 		add_filter( 'query_vars', [ self::class, 'query_vars' ] );
+		add_action( 'parse_request', [ $this, 'handle_path_request' ], 0, 0 );
 		add_action( 'template_redirect', [ $this, 'handle_path_request' ] );
 		add_filter( 'redirect_canonical', [ $this, 'disable_canonical_redirect' ], 10, 2 );
 	}
