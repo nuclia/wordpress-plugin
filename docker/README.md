@@ -28,7 +28,7 @@ Run `npm ci` from the plugin root after dependency changes.
 
 The GitHub Actions deployment workflow publishes to WordPress.org SVN only from numeric release tags that point to `main`, for example `0.1.0`. Do not use a `v` prefix.
 
-Pull requests targeting `main` and manual workflow runs execute the same deployment checks as a dry run: PHP lint, PHPUnit, Playwright, release artifact creation, and release metadata validation all run, but the SVN deploy step is skipped. GitHub's default pull request checkout tests the merge result for the branch being merged.
+Pull requests targeting `main` run the `Tests` workflow only: PHP lint, PHPUnit, Playwright, release artifact creation, and release metadata validation. The deploy workflow does not run on pull requests.
 
 Configure these repository secrets before pushing a release tag:
 
@@ -47,7 +47,7 @@ git tag 0.1.0
 git push origin 0.1.0
 ```
 
-To test the deployment pipeline without publishing, open or update a pull request targeting `main`, or run `Deploy to WordPress.org SVN` manually from GitHub Actions.
+To test the deployment pipeline without publishing, run `Deploy to WordPress.org SVN` manually from GitHub Actions. Manual runs execute the deployment checks and skip the SVN deploy step.
 
 For local metadata validation against an intended tag, pass `RELEASE_VERSION`:
 

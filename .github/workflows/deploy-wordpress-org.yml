@@ -4,9 +4,6 @@ on:
   push:
     tags:
       - '*'
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -97,6 +94,7 @@ jobs:
           until curl -fsS http://localhost:8080/wp-admin/install.php >/dev/null; do sleep 2; done
           docker run --rm \
             --network progress-agentic-rag-ci \
+            --user 0 \
             -e WORDPRESS_DB_HOST=progress-agentic-rag-ci-db \
             -e WORDPRESS_DB_USER=wordpress \
             -e WORDPRESS_DB_PASSWORD=wordpress \
