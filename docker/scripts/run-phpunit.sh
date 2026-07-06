@@ -8,4 +8,4 @@ if [ ! -f "$phpunit_phar" ]; then
 	php -r '$url = $argv[1]; $target = $argv[2]; if (! copy($url, $target)) { exit(1); }' "$phpunit_url" "$phpunit_phar"
 fi
 
-php "$phpunit_phar" -c phpunit.xml.dist
+php "$phpunit_phar" -c phpunit.xml.dist --testdox
