@@ -15,9 +15,7 @@ use ProgressAgenticRag\Indexing\Scheduler;
 use ProgressAgenticRag\Proxy\ProxyController;
 use ProgressAgenticRag\Settings\SettingsRepository;
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 final class Plugin {
 	private static ?Plugin $instance = null;
@@ -51,19 +49,9 @@ final class Plugin {
 	}
 
 	public function register(): void {
-		add_action( 'init', [ $this, 'load_textdomain' ] );
-
 		$this->proxy_controller->register();
 		$this->search_widget->register();
 		$this->manual_sync->register();
 		$this->admin_page->register();
-	}
-
-	public function load_textdomain(): void {
-		load_plugin_textdomain(
-			'progress-agentic-rag',
-			false,
-			dirname( PROGRESS_AGENTIC_RAG_BASENAME ) . '/languages'
-		);
 	}
 }

@@ -9,9 +9,7 @@ namespace ProgressAgenticRag\Proxy;
 
 use ProgressAgenticRag\Settings\SettingsRepository;
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 final class ProxyController {
 	private const QUERY_VAR_ENABLED      = 'progress_agentic_rag_proxy';
@@ -170,10 +168,10 @@ final class ProxyController {
 			$args['body'] = $body;
 		}
 
-		$response = wp_remote_request( $remote_url, $args );
-		if ( is_wp_error( $response ) ) {
-			return $this->error( 502, 'progress_agentic_rag_proxy_upstream_failed', $response->get_error_message() );
-		}
+			$response = wp_remote_request( $remote_url, $args );
+			if ( is_wp_error( $response ) ) {
+				return $this->error( 502, 'progress_agentic_rag_proxy_upstream_failed', sanitize_text_field( $response->get_error_message() ) );
+			}
 
 		$status = (int) wp_remote_retrieve_response_code( $response );
 
@@ -198,7 +196,8 @@ final class ProxyController {
 			}
 		}
 
-		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Raw URI is parsed, validated, and normalized before use.
+			$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
 		$request_path = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
 		$home_path = trim( (string) wp_parse_url( home_url( '/' ), PHP_URL_PATH ), '/' );
 		if ( '' !== $home_path && str_starts_with( $request_path, '/' . $home_path . '/' ) ) {
@@ -251,10 +250,12 @@ final class ProxyController {
 	}
 
 	private function client_query_string(): string {
-		$query_string = isset( $_SERVER['QUERY_STRING'] ) ? (string) wp_unslash( $_SERVER['QUERY_STRING'] ) : '';
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Raw query string is allow-list cleaned before proxying.
+			$query_string = isset( $_SERVER['QUERY_STRING'] ) ? (string) wp_unslash( $_SERVER['QUERY_STRING'] ) : '';
 
-		if ( '' === $query_string && isset( $_SERVER['REQUEST_URI'] ) ) {
-			$parsed = wp_parse_url( (string) wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_QUERY );
+			if ( '' === $query_string && isset( $_SERVER['REQUEST_URI'] ) ) {
+				// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Raw URI is parsed and the query is allow-list cleaned before proxying.
+				$parsed = wp_parse_url( (string) wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_QUERY );
 			$query_string = is_string( $parsed ) ? $parsed : '';
 		}
 

@@ -7,9 +7,7 @@
 
 namespace ProgressAgenticRag\Infrastructure;
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 final class Requirements {
 	public static function is_supported(): bool {

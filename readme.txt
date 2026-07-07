@@ -2,7 +2,7 @@
 Contributors: progresssoftware
 Tags: search, ai, knowledge-base, rag, indexing
 Requires at least: 6.8
-Tested up to: 6.8
+Tested up to: 7.0
 Stable tag: 0.1.0
 Requires PHP: 8.1
 License: GPLv2 or later

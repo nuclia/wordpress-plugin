@@ -32,5 +32,7 @@ foreach ( get_post_types( [], 'names' ) as $progress_agentic_rag_post_type ) {
 
 global $wpdb;
 
-$progress_agentic_rag_table_name = $wpdb->prefix . 'agentic_rag_for_wp';
-$wpdb->query( "DROP TABLE IF EXISTS $progress_agentic_rag_table_name" );
+$progress_agentic_rag_table_name = esc_sql( $wpdb->prefix . 'agentic_rag_for_wp' );
+
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Intentional uninstall cleanup for the plugin-owned table; table name is escaped.
+$wpdb->query( "DROP TABLE IF EXISTS {$progress_agentic_rag_table_name}" );

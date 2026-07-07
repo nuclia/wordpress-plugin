@@ -29,6 +29,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- Public plugin constants already use the Progress Agentic RAG prefix.
 define( 'PROGRESS_AGENTIC_RAG_VERSION', '0.1.0' );
 define( 'PROGRESS_AGENTIC_RAG_MIN_PHP_VERSION', '8.1' );
 define( 'PROGRESS_AGENTIC_RAG_MIN_WP_VERSION', '6.8' );
@@ -36,6 +37,7 @@ define( 'PROGRESS_AGENTIC_RAG_FILE', __FILE__ );
 define( 'PROGRESS_AGENTIC_RAG_PATH', plugin_dir_path( __FILE__ ) );
 define( 'PROGRESS_AGENTIC_RAG_URL', plugin_dir_url( __FILE__ ) );
 define( 'PROGRESS_AGENTIC_RAG_BASENAME', plugin_basename( __FILE__ ) );
+// phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
 
 require_once PROGRESS_AGENTIC_RAG_PATH . 'src/Autoloader.php';
 

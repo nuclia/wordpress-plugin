@@ -10,9 +10,7 @@ namespace ProgressAgenticRag\Lifecycle;
 use ProgressAgenticRag\Proxy\ProxyController;
 use ProgressAgenticRag\Settings\SettingsRepository;
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 final class Activator {
 	public static function activate(): void {

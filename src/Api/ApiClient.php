@@ -11,9 +11,7 @@ use ProgressAgenticRag\Settings\SettingsRepository;
 use WP_Error;
 use WP_Post;
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 final class ApiClient {
 	public function __construct( private readonly SettingsRepository $settings ) {
@@ -316,12 +314,16 @@ final class ApiClient {
 	public function get_synced_resources(): array {
 		global $wpdb;
 
+		$table_name = $this->sync_table_name();
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Reads plugin-owned sync table; values are prepared and the table name is escaped.
 		$results = $wpdb->get_results(
 			$wpdb->prepare(
-				'SELECT post_id, nuclia_rid FROM ' . $wpdb->prefix . SettingsRepository::SYNC_TABLE_NAME . ' WHERE nuclia_rid IS NOT NULL AND nuclia_rid != %s',
+				"SELECT post_id, nuclia_rid FROM {$table_name} WHERE nuclia_rid IS NOT NULL AND nuclia_rid != %s",
 				''
 			)
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
 		return is_array( $results ) ? $results : [];
 	}
@@ -501,7 +503,11 @@ final class ApiClient {
 		$body['icon']  = 'text/html';
 		$body['texts'] = [
 			'text-1' => [
-				'body'   => apply_filters( 'the_content', $post->post_content ),
+				'body'   => apply_filters(
+					// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core content filters are applied before indexing post content.
+					'the_content',
+					$post->post_content
+				),
 				'format' => 'HTML',
 			],
 		];
@@ -758,18 +764,26 @@ final class ApiClient {
 	private function get_indexed_resource_id( int $post_id ): string {
 		global $wpdb;
 
-		return (string) $wpdb->get_var(
+		$table_name = $this->sync_table_name();
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Reads plugin-owned sync table; values are prepared and the table name is escaped.
+		$resource_id = (string) $wpdb->get_var(
 			$wpdb->prepare(
-				'SELECT nuclia_rid FROM ' . $wpdb->prefix . SettingsRepository::SYNC_TABLE_NAME . ' WHERE post_id = %d',
+				"SELECT nuclia_rid FROM {$table_name} WHERE post_id = %d",
 				$post_id
 			)
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+
+		return $resource_id;
 	}
 
 	private function upsert_index( int $post_id, string $rid, string $seqid ): void {
 		global $wpdb;
 
-		$table_name = $wpdb->prefix . SettingsRepository::SYNC_TABLE_NAME;
+		$table_name = $this->sync_table_name();
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Writes plugin-owned sync table after upstream indexing succeeds.
 		$wpdb->delete( $table_name, [ 'post_id' => $post_id ], [ '%d' ] );
 		$wpdb->insert(
 			$table_name,
@@ -778,12 +792,13 @@ final class ApiClient {
 				'nuclia_rid'   => $rid,
 				'nuclia_seqid' => '' !== $seqid ? $seqid : null,
 			],
-			[
-				'%d',
-				'%s',
-				'%s',
-			]
-		);
+				[
+					'%d',
+					'%s',
+					'%s',
+				]
+			);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	}
 
 	private function response_error_message( mixed $response, string $fallback ): string {
@@ -804,6 +819,14 @@ final class ApiClient {
 	private function delete_index( int $post_id ): void {
 		global $wpdb;
 
-		$wpdb->delete( $wpdb->prefix . SettingsRepository::SYNC_TABLE_NAME, [ 'post_id' => $post_id ], [ '%d' ] );
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Removes one row from the plugin-owned sync table.
+		$wpdb->delete( $this->sync_table_name(), [ 'post_id' => $post_id ], [ '%d' ] );
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	}
+
+	private function sync_table_name(): string {
+		global $wpdb;
+
+		return esc_sql( $wpdb->prefix . SettingsRepository::SYNC_TABLE_NAME );
 	}
 }

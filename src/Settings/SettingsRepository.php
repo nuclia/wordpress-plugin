@@ -7,9 +7,7 @@
 
 namespace ProgressAgenticRag\Settings;
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 final class SettingsRepository {
 	public const OPTION_ZONE                 = 'nuclia_zone';

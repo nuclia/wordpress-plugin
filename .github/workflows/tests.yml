@@ -106,3 +106,20 @@ jobs:
 
       - name: Release artifact check
         run: RELEASE_DIR=build/progress-agentic-rag docker compose -f docker/docker-compose.yml run --rm release-check
+
+      - name: Plugin Check
+        run: |
+          docker run --rm \
+            --network progress-agentic-rag-ci \
+            --user 0 \
+            -e WORDPRESS_DB_HOST=progress-agentic-rag-ci-db \
+            -e WORDPRESS_DB_USER=wordpress \
+            -e WORDPRESS_DB_PASSWORD=wordpress \
+            -e WORDPRESS_DB_NAME=wordpress \
+            -e WP_URL=http://progress-agentic-rag-ci-wordpress \
+            -e PLUGIN_CHECK_TARGET=/plugin-check-target \
+            -v progress-agentic-rag-ci-wp:/var/www/html \
+            -v "$PWD":/plugin:ro \
+            -v "$PWD/build/progress-agentic-rag":/plugin-check-target:ro \
+            wordpress:cli \
+            sh /plugin/docker/scripts/run-plugin-check.sh

@@ -10,9 +10,7 @@ namespace ProgressAgenticRag\Frontend;
 use ProgressAgenticRag\Proxy\ProxyController;
 use ProgressAgenticRag\Settings\SettingsRepository;
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 final class SearchWidget {
 	private bool $rendered = false;

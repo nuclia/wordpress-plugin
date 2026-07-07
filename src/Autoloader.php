@@ -7,9 +7,7 @@
 
 namespace ProgressAgenticRag;
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 final class Autoloader {
 	private const PREFIX = __NAMESPACE__ . '\\';

@@ -7,6 +7,10 @@
 
 define( 'PROGRESS_AGENTIC_RAG_TESTS', true );
 
+if ( ! defined( 'ABSPATH' ) ) {
+	define( 'ABSPATH', dirname( __DIR__, 2 ) . '/' );
+}
+
 require_once dirname( __DIR__, 2 ) . '/src/Autoloader.php';
 
 ProgressAgenticRag\Autoloader::register();
@@ -62,7 +66,7 @@ if ( ! class_exists( 'ProgressAgenticRagTestWpdb' ) ) {
 		public array $deleted = [];
 		public array $inserted = [];
 		public array $results = [];
-		public mixed $var = 0;
+			public mixed $var = '';
 
 		public function prepare( string $query, mixed ...$args ): string {
 			return vsprintf( str_replace( [ '%s', '%d' ], [ "'%s'", '%d' ], $query ), $args );
@@ -134,6 +138,12 @@ if ( ! function_exists( 'sanitize_text_field' ) ) {
 if ( ! function_exists( 'sanitize_key' ) ) {
 	function sanitize_key( string $key ): string {
 		return strtolower( preg_replace( '/[^a-z0-9_\-]/', '', $key ) ?? '' );
+	}
+}
+
+if ( ! function_exists( 'esc_sql' ) ) {
+	function esc_sql( array|string $data ): array|string {
+		return $data;
 	}
 }
 

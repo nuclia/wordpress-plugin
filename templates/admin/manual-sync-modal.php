@@ -5,9 +5,7 @@
  * @package ProgressAgenticRag
  */
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 ?>
 <div class="progress-agentic-rag__modal" data-progress-agentic-rag-sync-modal hidden>
 	<div class="progress-agentic-rag__modal-backdrop" data-progress-agentic-rag-sync-close></div>

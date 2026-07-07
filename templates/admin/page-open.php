@@ -5,9 +5,7 @@
  * @package ProgressAgenticRag
  */
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 ?>
 <div class="wrap progress-agentic-rag">
 	<div class="progress-agentic-rag__shell">

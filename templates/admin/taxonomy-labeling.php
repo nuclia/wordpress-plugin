@@ -5,9 +5,7 @@
  * @package ProgressAgenticRag
  */
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 ?>
 <section class="progress-agentic-rag__panel" aria-labelledby="progress-agentic-rag-taxonomy-labeling-title">
 	<div class="progress-agentic-rag__panel-header">

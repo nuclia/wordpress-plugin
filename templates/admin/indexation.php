@@ -5,9 +5,9 @@
  * @package ProgressAgenticRag
  */
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
+
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Template locals are scoped by the including admin renderer.
 ?>
 <section class="progress-agentic-rag__panel" aria-labelledby="progress-agentic-rag-indexation-title">
 	<div class="progress-agentic-rag__panel-header">
@@ -137,3 +137,4 @@ if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
 		</div>
 	</section>
 <?php require_once PROGRESS_AGENTIC_RAG_PATH . 'templates/admin/manual-sync-modal.php'; ?>
+<?php // phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound ?>

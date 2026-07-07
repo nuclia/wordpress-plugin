@@ -11,9 +11,7 @@ use ProgressAgenticRag\Api\ApiClient;
 use ProgressAgenticRag\Indexing\ManualSync;
 use ProgressAgenticRag\Settings\SettingsRepository;
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 final class AdminPage {
 	private const MENU_SLUG = 'progress-agentic-rag';
@@ -87,12 +85,14 @@ final class AdminPage {
 				'nonce'                       => wp_create_nonce( 'progress_agentic_rag_manual_sync' ),
 				'initialSyncStatus'           => $this->manual_sync->status(),
 				'initialDeleteStatus'         => $this->manual_sync->delete_status(),
-				'initialBackgroundSyncStatus' => $this->manual_sync->ensure_automatic_sync(),
-				'mapping'                     => $this->mapping_data(),
-				'strings'                     => [
+					'initialBackgroundSyncStatus' => $this->manual_sync->ensure_automatic_sync(),
+					'mapping'                     => $this->mapping_data(),
+					'strings'                     => [
 					'closeDeleteProgress'  => __( 'Close delete progress', 'progress-agentic-rag' ),
 					'closeSyncProgress'    => __( 'Close sync progress', 'progress-agentic-rag' ),
+					/* translators: %d: synced resource count. */
 					'confirmDelete'        => __( 'Delete %d synced resource(s) from Progress Agentic RAG and clear their local sync mappings? This cannot be undone.', 'progress-agentic-rag' ),
+					/* translators: %d: synced resource count. */
 					'confirmReprocess'     => __( 'Update labels for %d synced resource(s) with the current taxonomy mapping?', 'progress-agentic-rag' ),
 					'deleteFailed'         => __( 'Synced resources could not be deleted.', 'progress-agentic-rag' ),
 					'deleteModalLabel'     => __( 'Synced resource delete', 'progress-agentic-rag' ),
@@ -180,6 +180,7 @@ final class AdminPage {
 		check_admin_referer( 'progress_agentic_rag_save_indexation' );
 
 		$allowed_post_types = array_keys( $this->indexable_post_type_objects() );
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce checked above; values are sanitized before use.
 		$raw_post_types     = isset( $_POST['indexable_post_types'] ) && is_array( $_POST['indexable_post_types'] ) ? wp_unslash( $_POST['indexable_post_types'] ) : [];
 		$selected           = [];
 
@@ -202,6 +203,7 @@ final class AdminPage {
 
 		check_admin_referer( 'progress_agentic_rag_save_taxonomy_labeling' );
 
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce checked above; SettingsRepository sanitizes the nested map.
 		$raw_taxonomy_map = isset( $_POST[ SettingsRepository::OPTION_TAXONOMY_LABEL_MAP ] ) && is_array( $_POST[ SettingsRepository::OPTION_TAXONOMY_LABEL_MAP ] ) ? wp_unslash( $_POST[ SettingsRepository::OPTION_TAXONOMY_LABEL_MAP ] ) : [];
 		$this->settings->update_taxonomy_label_map( $raw_taxonomy_map );
 		$this->manual_sync->ensure_automatic_sync( true );
@@ -215,6 +217,7 @@ final class AdminPage {
 
 		check_ajax_referer( 'progress_agentic_rag_manual_sync' );
 
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Ajax nonce checked above; values are sanitized before use.
 		$raw_post_types = isset( $_POST['post_types'] ) && is_array( $_POST['post_types'] ) ? wp_unslash( $_POST['post_types'] ) : [];
 		$post_types     = [];
 
@@ -224,7 +227,7 @@ final class AdminPage {
 
 		$result = $this->manual_sync->start( $post_types );
 		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( [ 'message' => $result->get_error_message() ], 400 );
+			wp_send_json_error( [ 'message' => sanitize_text_field( $result->get_error_message() ) ], 400 );
 		}
 
 		wp_send_json_success( $result );
@@ -269,7 +272,7 @@ final class AdminPage {
 
 		$result = $this->manual_sync->delete_synced_resources();
 		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( [ 'message' => $result->get_error_message() ], 400 );
+			wp_send_json_error( [ 'message' => sanitize_text_field( $result->get_error_message() ) ], 400 );
 		}
 
 		wp_send_json_success( $result );
@@ -284,7 +287,7 @@ final class AdminPage {
 
 		$result = $this->manual_sync->start_label_reprocess();
 		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( [ 'message' => $result->get_error_message() ], 400 );
+			wp_send_json_error( [ 'message' => sanitize_text_field( $result->get_error_message() ) ], 400 );
 		}
 
 		wp_send_json_success( $result );
@@ -323,6 +326,7 @@ final class AdminPage {
 	}
 
 	private function active_tab(): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Tab is read-only admin navigation state.
 		$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : self::TAB_INDEXATION;
 
 		if ( in_array( $tab, [ self::TAB_INDEXATION, self::TAB_TAXONOMY_LABELING, self::TAB_CONNECTION ], true ) ) {
@@ -355,10 +359,12 @@ final class AdminPage {
 	}
 
 	private function render_updated_notice(): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Notice flag is read-only redirect state.
 		if ( ! isset( $_GET['progress-agentic-rag-updated'] ) ) {
 			return;
 		}
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Connection status is read-only redirect state.
 		$connection_status = isset( $_GET['connection-status'] ) ? sanitize_key( wp_unslash( $_GET['connection-status'] ) ) : '';
 
 		if ( 'connected' === $connection_status ) {
@@ -445,7 +451,11 @@ final class AdminPage {
 		$zone                   = $this->settings->get_string( SettingsRepository::OPTION_ZONE );
 		$kbid                   = $this->settings->get_string( SettingsRepository::OPTION_KBID );
 		$account_id             = $this->settings->get_string( SettingsRepository::OPTION_ACCOUNT_ID );
-		$connection_state_label = sprintf( __( 'Connection: %s', 'progress-agentic-rag' ), $this->connection_status_label() );
+		$connection_state_label = sprintf(
+			/* translators: %s: current connection status. */
+			__( 'Connection: %s', 'progress-agentic-rag' ),
+			$this->connection_status_label()
+		);
 		$token_state_label      = $this->settings->has_token() ? __( 'Token saved', 'progress-agentic-rag' ) : __( 'Token missing', 'progress-agentic-rag' );
 		$zone_option_name       = SettingsRepository::OPTION_ZONE;
 		$kbid_option_name       = SettingsRepository::OPTION_KBID;
@@ -611,8 +621,9 @@ final class AdminPage {
 	}
 
 	private function posted_text( string $key ): string {
-		return isset( $_POST[ $key ] ) ? sanitize_text_field( wp_unslash( $_POST[ $key ] ) ) : '';
-	}
+			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Callers verify the matching admin nonce before reading posted values.
+			return isset( $_POST[ $key ] ) ? sanitize_text_field( wp_unslash( $_POST[ $key ] ) ) : '';
+		}
 
 	/**
 	 * @return array<string, \WP_Post_Type>

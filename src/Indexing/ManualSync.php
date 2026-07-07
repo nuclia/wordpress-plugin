@@ -12,9 +12,7 @@ use ProgressAgenticRag\Settings\SettingsRepository;
 use WP_Error;
 use WP_Post;
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 final class ManualSync {
 	private const HOOK_PROCESS_SINGLE     = 'progress_agentic_rag_manual_sync_post';
@@ -559,7 +557,7 @@ final class ManualSync {
 
 		$result = $this->api_client->index_post( $post );
 		if ( is_wp_error( $result ) ) {
-			$this->mark_failed( $this->entity_label( $post ) . ': ' . $result->get_error_message() );
+			$this->mark_failed( $this->entity_label( $post ) . ': ' . $this->error_message( $result ) );
 			return;
 		}
 
@@ -582,7 +580,8 @@ final class ManualSync {
 
 		$result = $this->api_client->update_resource_labels( $post, $rid );
 		if ( is_wp_error( $result ) ) {
-			throw new \RuntimeException( $result->get_error_message() );
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message is sanitized by error_message().
+			throw new \RuntimeException( $this->error_message( $result ) );
 		}
 	}
 
@@ -607,7 +606,7 @@ final class ManualSync {
 
 		$result = $this->api_client->delete_resource( $post_id, $rid );
 		if ( is_wp_error( $result ) ) {
-			$this->mark_delete_failed( $label . ': ' . $result->get_error_message() );
+			$this->mark_delete_failed( $label . ': ' . $this->error_message( $result ) );
 			return;
 		}
 
@@ -708,12 +707,13 @@ final class ManualSync {
 		if ( ! $this->is_indexable_post( $post, $post_type ) ) {
 			$rid = $this->get_resource_id( $post_id );
 			if ( '' !== $rid ) {
-				$result = $this->api_client->delete_resource( $post_id, $rid );
-				if ( is_wp_error( $result ) ) {
-					$this->mark_background_failed( $this->entity_label( $post ) . ': ' . $result->get_error_message(), $background_id );
-					throw new \RuntimeException( $result->get_error_message() );
+					$result = $this->api_client->delete_resource( $post_id, $rid );
+					if ( is_wp_error( $result ) ) {
+						$this->mark_background_failed( $this->entity_label( $post ) . ': ' . $this->error_message( $result ), $background_id );
+						// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message is sanitized by error_message().
+						throw new \RuntimeException( $this->error_message( $result ) );
+					}
 				}
-			}
 
 			$this->mark_background_completed( $background_id );
 			return;
@@ -721,8 +721,9 @@ final class ManualSync {
 
 		$result = $this->api_client->sync_post( $post );
 		if ( is_wp_error( $result ) ) {
-			$this->mark_background_failed( $this->entity_label( $post ) . ': ' . $result->get_error_message(), $background_id );
-			throw new \RuntimeException( $result->get_error_message() );
+			$this->mark_background_failed( $this->entity_label( $post ) . ': ' . $this->error_message( $result ), $background_id );
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message is sanitized by error_message().
+			throw new \RuntimeException( $this->error_message( $result ) );
 		}
 
 		$this->mark_background_completed( $background_id );
@@ -741,8 +742,9 @@ final class ManualSync {
 
 		$result = $this->api_client->delete_resource( $post_id, $rid );
 		if ( is_wp_error( $result ) ) {
-			$this->mark_background_failed( $result->get_error_message(), $background_id );
-			throw new \RuntimeException( $result->get_error_message() );
+			$this->mark_background_failed( $this->error_message( $result ), $background_id );
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message is sanitized by error_message().
+			throw new \RuntimeException( $this->error_message( $result ) );
 		}
 
 		$this->mark_background_completed( $background_id );
@@ -756,7 +758,8 @@ final class ManualSync {
 	private function unindexed_entities( array $post_types ): array {
 		global $wpdb;
 
-		$entities = [];
+		$entities        = [];
+		$sync_table_name = $this->sync_table_name();
 
 		foreach ( $post_types as $post_type ) {
 			$post_status = 'attachment' === $post_type ? 'inherit' : 'publish';
@@ -764,22 +767,24 @@ final class ManualSync {
 			$offset      = 0;
 
 			do {
-				$results = $wpdb->get_results(
-					$wpdb->prepare(
-						"SELECT p.ID FROM {$wpdb->posts} AS p
-						 LEFT JOIN {$wpdb->prefix}" . SettingsRepository::SYNC_TABLE_NAME . ' AS idx ON ( p.ID = idx.post_id )
+					// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Reads plugin-owned sync table; values are prepared and table names are escaped.
+					$results = $wpdb->get_results(
+						$wpdb->prepare(
+							"SELECT p.ID FROM {$wpdb->posts} AS p
+						 LEFT JOIN {$sync_table_name} AS idx ON ( p.ID = idx.post_id )
 						 WHERE idx.post_id IS NULL
 						   AND p.post_type = %s
 						   AND p.post_status = %s
 						   AND p.post_password = %s
-						 LIMIT %d OFFSET %d',
+						 LIMIT %d OFFSET %d",
 						$post_type,
 						$post_status,
 						'',
 						$limit,
 						$offset
-					)
-				);
+						)
+					);
+					// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
 				foreach ( $results as $result ) {
 					$entities[] = [
@@ -872,7 +877,8 @@ final class ManualSync {
 
 		$post_status = 'attachment' === $post_type ? 'inherit' : 'publish';
 
-		return (int) $wpdb->get_var(
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Counts eligible public posts for the admin sync summary.
+		$count = (int) $wpdb->get_var(
 			$wpdb->prepare(
 				"SELECT COUNT(*) FROM {$wpdb->posts}
 				 WHERE post_type = %s
@@ -883,33 +889,48 @@ final class ManualSync {
 				''
 			)
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+		return $count;
 	}
 
 	private function count_synced_entities( string $post_type ): int {
 		global $wpdb;
 
-		return (int) $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT COUNT(*) FROM {$wpdb->prefix}" . SettingsRepository::SYNC_TABLE_NAME . " AS idx
+		$sync_table_name = $this->sync_table_name();
+
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Counts plugin-owned sync rows; values are prepared and table names are escaped.
+			$count = (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(*) FROM {$sync_table_name} AS idx
 				 INNER JOIN {$wpdb->posts} AS p ON ( p.ID = idx.post_id )
 				 WHERE p.post_type = %s
 				   AND idx.nuclia_rid IS NOT NULL
 				   AND idx.nuclia_rid != %s",
 				$post_type,
 				''
-			)
-		);
+				)
+			);
+			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+
+		return $count;
 	}
 
 	private function count_synced_resources(): int {
 		global $wpdb;
 
-		return (int) $wpdb->get_var(
-			$wpdb->prepare(
-				'SELECT COUNT(*) FROM ' . $wpdb->prefix . SettingsRepository::SYNC_TABLE_NAME . ' WHERE nuclia_rid IS NOT NULL AND nuclia_rid != %s',
+		$sync_table_name = $this->sync_table_name();
+
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Counts plugin-owned sync rows; values are prepared and the table name is escaped.
+			$count = (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(*) FROM {$sync_table_name} WHERE nuclia_rid IS NOT NULL AND nuclia_rid != %s",
 				''
-			)
-		);
+				)
+			);
+			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+
+		return $count;
 	}
 
 	/**
@@ -952,19 +973,39 @@ final class ManualSync {
 	private function get_resource_id( int $post_id ): string {
 		global $wpdb;
 
-		return (string) $wpdb->get_var(
-			$wpdb->prepare(
-				'SELECT nuclia_rid FROM ' . $wpdb->prefix . SettingsRepository::SYNC_TABLE_NAME . ' WHERE post_id = %d',
+		$sync_table_name = $this->sync_table_name();
+
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Reads plugin-owned sync table; values are prepared and the table name is escaped.
+			$resource_id = (string) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT nuclia_rid FROM {$sync_table_name} WHERE post_id = %d",
 				$post_id
-			)
-		);
+				)
+			);
+			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+
+		return $resource_id;
+	}
+
+	private function sync_table_name(): string {
+		global $wpdb;
+
+		return esc_sql( $wpdb->prefix . SettingsRepository::SYNC_TABLE_NAME );
+	}
+
+	private function error_message( WP_Error $error ): string {
+		return sanitize_text_field( $error->get_error_message() );
 	}
 
 	private function entity_label( WP_Post $post ): string {
 		$title = wp_strip_all_tags( get_the_title( $post ) );
 
 		if ( '' === $title ) {
-			$title = sprintf( __( 'Entity #%d', 'progress-agentic-rag' ), (int) $post->ID );
+			$title = sprintf(
+				/* translators: %d is the WordPress post ID for an entity with no title. */
+				__( 'Entity #%d', 'progress-agentic-rag' ),
+				(int) $post->ID
+			);
 		}
 
 		return sprintf( '%s: %s', $this->entity_type_label( $post->post_type ), $title );

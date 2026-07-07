@@ -7,9 +7,7 @@
 
 namespace ProgressAgenticRag\Lifecycle;
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 final class Deactivator {
 	public static function deactivate(): void {

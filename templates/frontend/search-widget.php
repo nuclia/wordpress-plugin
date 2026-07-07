@@ -5,9 +5,7 @@
  * @package ProgressAgenticRag
  */
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 ?>
 <div class="progress-agentic-rag-search-widget" data-progress-agentic-rag-search-widget>
 	<nuclia-search-bar

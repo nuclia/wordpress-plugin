@@ -5,9 +5,7 @@
  * @package ProgressAgenticRag
  */
 
-if ( ! defined( 'ABSPATH' ) && ! defined( 'PROGRESS_AGENTIC_RAG_TESTS' ) ) {
-	exit;
-}
+defined( 'ABSPATH' ) || exit;
 ?>
 <nav class="progress-agentic-rag__tabs" aria-label="<?php esc_attr_e( 'Progress Agentic RAG sections', 'progress-agentic-rag' ); ?>">
 	<?php foreach ( $tabs as $tab ) : ?>

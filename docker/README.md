@@ -9,6 +9,14 @@ PROGRESS_AGENTIC_RAG_E2E_KEY=progress-agentic-rag-e2e WP_BASE_URL=http://host.do
 RELEASE_DIR=build/progress-agentic-rag docker compose -f docker/docker-compose.yml run --rm release-check
 ```
 
+Plugin Check needs the repository-root WordPress stack. From the repository root, after bootstrap:
+
+```sh
+docker compose --profile plugin-check run --rm plugin-check
+```
+
+Use the same `WORDPRESS_PORT` and `WP_URL` prefix if the root WordPress stack is running on a custom port.
+
 Before running Playwright against the repository-root WordPress stack, install the test-only mu-plugin and shared key:
 
 ```sh
@@ -28,7 +36,7 @@ Run `npm ci` from the plugin root after dependency changes.
 
 The GitHub Actions deployment workflow publishes to WordPress.org SVN on pushes to `main`. The workflow uses the numeric `x.y.z` version from `progress-agentic-rag.php` as the WordPress.org SVN tag.
 
-All pull requests run the `Tests` workflow only: PHP lint, PHPUnit, Playwright, release artifact creation, and release metadata validation. The deploy workflow does not run on pull requests.
+All pull requests run the `Tests` workflow only: PHP lint, PHPUnit, Playwright, release artifact creation, release metadata validation, and Plugin Check's Plugin repo category. The deploy workflow does not run on pull requests.
 
 Configure these repository secrets before merging a release to `main`:
 
