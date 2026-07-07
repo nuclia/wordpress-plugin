@@ -551,4 +551,658 @@ final class ManualSyncTest extends TestCase {
 			$body['usermetadata']['classifications']
 		);
 	}
+
+	public function test_start_returns_guard_errors_for_delete_connection_and_empty_selection(): void {
+		$settings = new SettingsRepository();
+		$sync     = new ManualSync( $settings, new ApiClient( $settings ) );
+
+		update_option(
+			SettingsRepository::OPTION_DELETE_SYNC_STATE,
+			[
+				'status' => 'running',
+			]
+		);
+
+		self::assertInstanceOf( WP_Error::class, $sync->start( [ 'post' ] ) );
+
+		update_option( SettingsRepository::OPTION_DELETE_SYNC_STATE, [] );
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'no' );
+
+		self::assertInstanceOf( WP_Error::class, $sync->start( [ 'post' ] ) );
+
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'yes' );
+
+		self::assertInstanceOf( WP_Error::class, $sync->start( [] ) );
+	}
+
+	public function test_status_completes_running_state_and_preserves_recovered_message(): void {
+		update_option(
+			SettingsRepository::OPTION_MANUAL_SYNC_STATE,
+			[
+				'id'        => 'sync-complete',
+				'status'    => 'running',
+				'total'     => 2,
+				'completed' => 2,
+				'failed'    => 0,
+				'recovered' => 1,
+				'current'   => '',
+			]
+		);
+
+		$status = ( new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) ) )->status();
+
+		self::assertSame( 'complete', $status['status'] );
+		self::assertSame( 'Manual sync complete.', $status['message'] );
+		self::assertSame( 100, $status['percent'] );
+	}
+
+	public function test_start_reports_recovered_existing_resources(): void {
+		$GLOBALS['wpdb']->results = [
+			(object) [
+				'ID' => '61',
+			],
+		];
+		$GLOBALS['progress_agentic_rag_test_posts'][61] = new WP_Post(
+			[
+				'ID'          => 61,
+				'post_title'  => 'Recovered Article',
+				'post_type'   => 'post',
+				'post_status' => 'publish',
+			]
+		);
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 200,
+			],
+			'body'     => '{"resources":[{"id":"rid-61","slug":"61","seqid":"seq-61"}]}',
+		];
+
+		$result = ( new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) ) )->start( [ 'post' ] );
+
+		self::assertSame( 1, $result['recovered'] );
+		self::assertStringContainsString( 'Recovered 1 existing upstream resource.', $result['message'] );
+		self::assertSame( 'rid-61', $GLOBALS['wpdb']->inserted[0]['data']['nuclia_rid'] );
+	}
+
+	public function test_delete_synced_resources_guard_errors_and_empty_completion(): void {
+		$settings = new SettingsRepository();
+		$sync     = new ManualSync( $settings, new ApiClient( $settings ) );
+
+		update_option(
+			SettingsRepository::OPTION_MANUAL_SYNC_STATE,
+			[
+				'status' => 'running',
+			]
+		);
+
+		self::assertInstanceOf( WP_Error::class, $sync->delete_synced_resources() );
+
+		update_option( SettingsRepository::OPTION_MANUAL_SYNC_STATE, [] );
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'no' );
+
+		self::assertInstanceOf( WP_Error::class, $sync->delete_synced_resources() );
+
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'yes' );
+		$GLOBALS['wpdb']->results = [];
+
+		$status = $sync->delete_synced_resources();
+
+		self::assertSame( 'complete', $status['status'] );
+		self::assertSame( 'No synced resources to delete.', $status['current'] );
+	}
+
+	public function test_delete_status_completes_with_failure_message_and_default_current(): void {
+		update_option(
+			SettingsRepository::OPTION_DELETE_SYNC_STATE,
+			[
+				'id'      => 'delete-complete',
+				'status'  => 'running',
+				'total'   => 2,
+				'deleted' => 1,
+				'failed'  => 1,
+				'current' => '',
+			]
+		);
+
+		$status = ( new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) ) )->delete_status();
+
+		self::assertSame( 'complete', $status['status'] );
+		self::assertStringContainsString( 'Some synced resources could not be deleted.', $status['message'] );
+		self::assertSame( '', $status['current'] );
+	}
+
+	public function test_label_reprocess_guard_errors_and_cancel(): void {
+		$settings = new SettingsRepository();
+		$sync     = new ManualSync( $settings, new ApiClient( $settings ) );
+
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'no' );
+
+		self::assertInstanceOf( WP_Error::class, $sync->start_label_reprocess() );
+
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'yes' );
+		update_option(
+			SettingsRepository::OPTION_DELETE_SYNC_STATE,
+			[
+				'status' => 'running',
+			]
+		);
+
+		self::assertInstanceOf( WP_Error::class, $sync->start_label_reprocess() );
+
+		update_option( SettingsRepository::OPTION_DELETE_SYNC_STATE, [] );
+		$GLOBALS['progress_agentic_rag_test_scheduled_actions'][] = [
+			'timestamp' => time(),
+			'hook'      => 'progress_agentic_rag_reprocess_resource_labels',
+			'args'      => [],
+			'group'     => 'progress-agentic-rag-labels',
+			'status'    => 'pending',
+		];
+
+		self::assertInstanceOf( WP_Error::class, $sync->start_label_reprocess() );
+		self::assertSame( 'Label reprocessing cancelled.', $sync->cancel_label_reprocess()['message'] );
+	}
+
+	public function test_process_single_post_handles_mismatch_missing_and_already_indexed(): void {
+		update_option(
+			SettingsRepository::OPTION_MANUAL_SYNC_STATE,
+			[
+				'id'        => 'sync-current',
+				'status'    => 'running',
+				'total'     => 2,
+				'completed' => 0,
+				'failed'    => 0,
+			]
+		);
+		$settings = new SettingsRepository();
+		$sync     = new ManualSync( $settings, new ApiClient( $settings ) );
+
+		$sync->process_single_post( 71, 'post', 'old-sync' );
+		self::assertSame( 0, $sync->status()['processed'] );
+
+		$sync->process_single_post( 71, 'post', 'sync-current' );
+		self::assertSame( 1, $sync->status()['failed'] );
+
+		$GLOBALS['progress_agentic_rag_test_posts'][72] = new WP_Post(
+			[
+				'ID'          => 72,
+				'post_title'  => 'Already Indexed',
+				'post_type'   => 'post',
+				'post_status' => 'publish',
+			]
+		);
+		$GLOBALS['wpdb']->var = 'rid-72';
+
+		$sync->process_single_post( 72, 'post', 'sync-current' );
+
+		self::assertSame( 1, $sync->status()['completed'] );
+	}
+
+	public function test_process_label_reprocess_and_delete_validate_inputs_and_failures(): void {
+		$settings = new SettingsRepository();
+		$sync     = new ManualSync( $settings, new ApiClient( $settings ) );
+
+		$sync->process_single_label_reprocess( 0, '', '' );
+
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'no' );
+
+		$this->expectException( RuntimeException::class );
+		$sync->process_single_label_reprocess( 81, 'rid-81', 'reprocess-1' );
+	}
+
+	public function test_process_label_reprocess_throws_sanitized_api_error(): void {
+		$GLOBALS['progress_agentic_rag_test_posts'][82] = new WP_Post(
+			[
+				'ID'         => 82,
+				'post_title' => 'Label Error',
+			]
+		);
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 500,
+			],
+			'body'     => '{"detail":"<b>Bad labels</b>"}',
+		];
+
+		$this->expectException( RuntimeException::class );
+		$this->expectExceptionMessage( 'Bad labels' );
+
+		( new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) ) )->process_single_label_reprocess( 82, 'rid-82', 'reprocess-1' );
+	}
+
+	public function test_process_single_delete_marks_invalid_and_api_failures(): void {
+		update_option(
+			SettingsRepository::OPTION_DELETE_SYNC_STATE,
+			[
+				'id'      => 'delete-current',
+				'status'  => 'running',
+				'total'   => 2,
+				'deleted' => 0,
+				'failed'  => 0,
+			]
+		);
+
+		$sync = new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) );
+
+		$sync->process_single_delete( 91, 'rid-91', 'old-delete' );
+		self::assertSame( 0, $sync->delete_status()['processed'] );
+
+		$sync->process_single_delete( 0, '', 'delete-current' );
+		self::assertSame( 1, $sync->delete_status()['failed'] );
+
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 500,
+			],
+			'body'     => '{"detail":"Delete failed"}',
+		];
+		$sync->process_single_delete( 91, 'rid-91', 'delete-current' );
+
+		self::assertSame( 2, $sync->delete_status()['failed'] );
+	}
+
+	public function test_background_attachment_delete_and_workers_cover_success_and_error_paths(): void {
+		$GLOBALS['progress_agentic_rag_test_posts'][101] = new WP_Post(
+			[
+				'ID'          => 101,
+				'post_title'  => 'Attachment',
+				'post_type'   => 'attachment',
+				'post_status' => 'inherit',
+			]
+		);
+		$settings = new SettingsRepository();
+		$settings->update_indexable_post_types( [ 'post', 'page', 'attachment' ] );
+		$sync     = new ManualSync( $settings, new ApiClient( $settings ) );
+
+		$sync->schedule_background_attachment_sync( 101 );
+		self::assertSame( 'progress_agentic_rag_background_sync_post', $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['hook'] );
+
+		$GLOBALS['wpdb']->var = 'rid-101';
+		$sync->schedule_background_delete( 101, $GLOBALS['progress_agentic_rag_test_posts'][101] );
+		self::assertSame( 'progress_agentic_rag_background_delete_resource', $GLOBALS['progress_agentic_rag_test_scheduled_actions'][1]['hook'] );
+
+		$background_id = $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['args']['background_id'];
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 201,
+			],
+			'body'     => '{"uuid":"rid-101","seqid":"seq-101"}',
+		];
+		$sync->process_background_post( 101, 'attachment', $background_id );
+		self::assertSame( 1, $sync->background_sync_status()['completed'] );
+
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'no' );
+		$this->expectException( RuntimeException::class );
+		$sync->process_background_delete( 101, 'rid-101', $background_id );
+	}
+
+	public function test_ensure_automatic_sync_skips_for_invalid_states_and_failed_complete_without_retry(): void {
+		$sync = new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) );
+
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'no' );
+		self::assertSame( 'idle', $sync->ensure_automatic_sync()['status'] );
+
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'yes' );
+		update_option( SettingsRepository::OPTION_MANUAL_SYNC_STATE, [ 'status' => 'running' ] );
+		self::assertSame( 'idle', $sync->ensure_automatic_sync()['status'] );
+
+		update_option( SettingsRepository::OPTION_MANUAL_SYNC_STATE, [] );
+		update_option( SettingsRepository::OPTION_DELETE_SYNC_STATE, [ 'status' => 'running' ] );
+		self::assertSame( 'idle', $sync->ensure_automatic_sync()['status'] );
+
+		update_option( SettingsRepository::OPTION_DELETE_SYNC_STATE, [] );
+		update_option(
+			SettingsRepository::OPTION_BACKGROUND_SYNC_STATE,
+			[
+				'status' => 'complete',
+				'total'  => 1,
+				'failed' => 1,
+			]
+		);
+		self::assertSame( 1, $sync->ensure_automatic_sync()['failed'] );
+	}
+
+	public function test_schedule_background_post_sync_skips_unselected_and_duplicate_posts(): void {
+		$settings = new SettingsRepository();
+		$sync     = new ManualSync( $settings, new ApiClient( $settings ) );
+		$post     = new WP_Post(
+			[
+				'ID'          => 111,
+				'post_title'  => '',
+				'post_type'   => 'book',
+				'post_status' => 'publish',
+			]
+		);
+
+		$sync->schedule_background_post_sync( 111, $post, true );
+		self::assertSame( [], $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
+
+		$settings->update_indexable_post_types( [ 'post', 'page', 'book' ] );
+		$GLOBALS['progress_agentic_rag_test_post_type_objects']['book'] = (object) [
+			'labels' => (object) [
+				'name'          => 'Books',
+				'singular_name' => '',
+			],
+		];
+		$GLOBALS['progress_agentic_rag_test_posts'][111] = $post;
+
+		$sync->schedule_background_post_sync( 111, $post, true );
+		$sync->schedule_background_post_sync( 111, $post, true );
+
+		self::assertCount( 1, $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
+		self::assertSame( 'Books: Entity #111', $sync->background_sync_status()['current'] );
+	}
+
+	public function test_background_post_worker_handles_connection_missing_post_delete_and_sync_errors(): void {
+		$settings = new SettingsRepository();
+		$sync     = new ManualSync( $settings, new ApiClient( $settings ) );
+		update_option(
+			SettingsRepository::OPTION_BACKGROUND_SYNC_STATE,
+			[
+				'id'        => 'background-1',
+				'status'    => 'running',
+				'total'     => 4,
+				'completed' => 0,
+				'failed'    => 0,
+			]
+		);
+
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'no' );
+		try {
+			$sync->process_background_post( 121, 'post', 'background-1' );
+			self::fail( 'Expected connection exception.' );
+		} catch ( RuntimeException $exception ) {
+			self::assertStringContainsString( 'connection is not validated', $exception->getMessage() );
+		}
+
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'yes' );
+		$sync->process_background_post( 121, 'post', 'background-1' );
+		self::assertSame( 1, $sync->background_sync_status()['completed'] );
+
+		$GLOBALS['wpdb']->var = 'rid-122';
+		$GLOBALS['progress_agentic_rag_test_posts'][122] = new WP_Post(
+			[
+				'ID'          => 122,
+				'post_title'  => 'Draft',
+				'post_type'   => 'post',
+				'post_status' => 'draft',
+			]
+		);
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 204,
+			],
+			'body'     => '',
+		];
+		$sync->process_background_post( 122, 'post', 'background-1' );
+		self::assertSame( 'DELETE', $GLOBALS['progress_agentic_rag_test_http_requests'][0]['args']['method'] );
+
+		$GLOBALS['wpdb']->var = '';
+		$GLOBALS['progress_agentic_rag_test_posts'][123] = new WP_Post(
+			[
+				'ID'          => 123,
+				'post_title'  => 'Sync Error',
+				'post_type'   => 'post',
+				'post_status' => 'publish',
+			]
+		);
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 500,
+			],
+			'body'     => '{"detail":"Sync failed"}',
+		];
+
+		$this->expectException( RuntimeException::class );
+		$this->expectExceptionMessage( 'Sync failed' );
+		$sync->process_background_post( 123, 'post', 'background-1' );
+	}
+
+	public function test_background_delete_worker_completes_invalid_and_successful_deletes(): void {
+		update_option(
+			SettingsRepository::OPTION_BACKGROUND_SYNC_STATE,
+			[
+				'id'        => 'background-delete',
+				'status'    => 'running',
+				'total'     => 2,
+				'completed' => 0,
+				'failed'    => 0,
+			]
+		);
+		$sync = new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) );
+
+		$sync->process_background_delete( 0, '', 'background-delete' );
+		self::assertSame( 1, $sync->background_sync_status()['completed'] );
+
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 204,
+			],
+			'body'     => '',
+		];
+		$sync->process_background_delete( 131, 'rid-131', 'background-delete' );
+
+		self::assertSame( 2, $sync->background_sync_status()['completed'] );
+	}
+
+	public function test_background_delete_worker_throws_on_api_error(): void {
+		update_option(
+			SettingsRepository::OPTION_BACKGROUND_SYNC_STATE,
+			[
+				'id'        => 'background-delete-error',
+				'status'    => 'running',
+				'total'     => 1,
+				'completed' => 0,
+				'failed'    => 0,
+			]
+		);
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 500,
+			],
+			'body'     => '{"detail":"Delete failed"}',
+		];
+
+		$this->expectException( RuntimeException::class );
+		$this->expectExceptionMessage( 'Delete failed' );
+
+		( new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) ) )->process_background_delete( 132, 'rid-132', 'background-delete-error' );
+	}
+
+	public function test_manual_sync_edge_states_cover_recovery_delete_and_label_branches(): void {
+		$GLOBALS['wpdb']->results = [
+			(object) [
+				'ID' => '141',
+			],
+		];
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 500,
+			],
+			'body'     => '{"detail":"Lookup failed"}',
+		];
+
+		$sync = new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) );
+
+		self::assertInstanceOf( WP_Error::class, $sync->start( [ 'post' ] ) );
+
+		update_option(
+			SettingsRepository::OPTION_BACKGROUND_SYNC_STATE,
+			[
+				'id'        => 'background-failed',
+				'status'    => 'running',
+				'total'     => 1,
+				'completed' => 0,
+				'failed'    => 1,
+			]
+		);
+
+		$background_status = $sync->background_sync_status();
+
+		self::assertSame( 'complete', $background_status['status'] );
+		self::assertSame( 'Automatic background sync finished with failures.', $background_status['message'] );
+
+		update_option( SettingsRepository::OPTION_DELETE_SYNC_STATE, [] );
+		$GLOBALS['wpdb']->results = [
+			(object) [
+				'post_id'    => '0',
+				'nuclia_rid' => '',
+			],
+			(object) [
+				'post_id'    => '142',
+				'nuclia_rid' => 'rid-142',
+			],
+		];
+
+		$delete_status = $sync->delete_synced_resources();
+
+		self::assertSame( 1, $delete_status['failed'] );
+		self::assertCount( 1, $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
+
+		update_option(
+			SettingsRepository::OPTION_DELETE_SYNC_STATE,
+			[
+				'id'      => 'delete-running-first',
+				'status'  => 'running',
+				'total'   => 2,
+				'deleted' => 0,
+				'failed'  => 0,
+				'current' => '',
+			]
+		);
+
+		self::assertSame( 'Waiting for the first resource.', $sync->delete_status()['current'] );
+
+		update_option(
+			SettingsRepository::OPTION_DELETE_SYNC_STATE,
+			[
+				'id'      => 'delete-running-next',
+				'status'  => 'running',
+				'total'   => 2,
+				'deleted' => 1,
+				'failed'  => 0,
+				'current' => '',
+			]
+		);
+
+		self::assertSame( 'Waiting for the next resource.', $sync->delete_status()['current'] );
+
+		update_option( SettingsRepository::OPTION_DELETE_SYNC_STATE, [] );
+		$GLOBALS['wpdb']->results = [
+			(object) [
+				'post_id'    => '0',
+				'nuclia_rid' => '',
+			],
+			(object) [
+				'post_id'    => '143',
+				'nuclia_rid' => 'rid-143',
+			],
+		];
+
+		$label_status = $sync->start_label_reprocess();
+
+		self::assertSame( 1, $label_status['scheduled'] );
+	}
+
+	public function test_background_and_private_helpers_cover_edge_branches(): void {
+		$settings = new SettingsRepository();
+		$settings->update_indexable_post_types( [ 'post' ] );
+		$sync = new ManualSync( $settings, new ApiClient( $settings ) );
+
+		$sync->process_single_label_reprocess( 151, 'rid-151', 'reprocess-1' );
+
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'no' );
+		$sync->schedule_background_delete( 151, new WP_Post( [ 'ID' => 151 ] ) );
+		self::assertSame( [], $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
+
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'yes' );
+		$GLOBALS['wpdb']->var = '';
+		$sync->schedule_background_delete( 151, new WP_Post( [ 'ID' => 151 ] ) );
+		self::assertSame( [], $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
+
+		update_option(
+			SettingsRepository::OPTION_BACKGROUND_SYNC_STATE,
+			[
+				'id'        => 'background-delete-error',
+				'status'    => 'running',
+				'total'     => 1,
+				'completed' => 0,
+				'failed'    => 0,
+			]
+		);
+		$GLOBALS['wpdb']->var = 'rid-152';
+		$GLOBALS['progress_agentic_rag_test_posts'][152] = new WP_Post(
+			[
+				'ID'          => 152,
+				'post_title'  => 'Draft Delete Error',
+				'post_type'   => 'post',
+				'post_status' => 'draft',
+			]
+		);
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 500,
+			],
+			'body'     => '{"detail":"Delete failed"}',
+		];
+
+		try {
+			$sync->process_background_post( 152, 'post', 'background-delete-error' );
+			self::fail( 'Expected delete exception.' );
+		} catch ( RuntimeException $exception ) {
+			self::assertStringContainsString( 'Delete failed', $exception->getMessage() );
+		}
+
+		$args_ref = new ReflectionMethod( $sync, 'scheduled_action_args' );
+		$args_ref->setAccessible( true );
+		$action_with_method = new class() {
+			public function get_args(): array {
+				return [ 'post_id' => 1 ];
+			}
+		};
+
+		self::assertSame( [ 'post_id' => 1 ], $args_ref->invoke( $sync, $action_with_method ) );
+		self::assertSame( [ 'post_id' => 2 ], $args_ref->invoke( $sync, (object) [ 'args' => [ 'post_id' => 2 ] ] ) );
+		self::assertSame( [ 'post_id' => 3 ], $args_ref->invoke( $sync, [ 'args' => [ 'post_id' => 3 ] ] ) );
+		self::assertSame( [], $args_ref->invoke( $sync, 'bad-action' ) );
+
+		$is_indexable_ref = new ReflectionMethod( $sync, 'is_indexable_post' );
+		$is_indexable_ref->setAccessible( true );
+
+		self::assertFalse(
+			$is_indexable_ref->invoke(
+				$sync,
+				new WP_Post(
+					[
+						'post_type'     => 'post',
+						'post_status'   => 'publish',
+						'post_password' => 'secret',
+					]
+				),
+				'post'
+			)
+		);
+
+		$update_background_ref = new ReflectionMethod( $sync, 'update_background_current' );
+		$update_background_ref->setAccessible( true );
+		$complete_background_ref = new ReflectionMethod( $sync, 'mark_background_completed' );
+		$complete_background_ref->setAccessible( true );
+		$fail_background_ref = new ReflectionMethod( $sync, 'mark_background_failed' );
+		$fail_background_ref->setAccessible( true );
+
+		$update_background_ref->invoke( $sync, 'Ignored', '' );
+		$update_background_ref->invoke( $sync, 'Ignored', 'wrong-background' );
+		$complete_background_ref->invoke( $sync, '' );
+		$complete_background_ref->invoke( $sync, 'wrong-background' );
+		$fail_background_ref->invoke( $sync, 'Ignored', '' );
+		$fail_background_ref->invoke( $sync, 'Ignored', 'wrong-background' );
+
+		if ( ! class_exists( 'ActionScheduler_Store' ) ) {
+			eval( 'class ActionScheduler_Store { public const STATUS_COMPLETE = "complete"; public const STATUS_FAILED = "failed"; public const STATUS_PENDING = "pending"; public const STATUS_RUNNING = "in-progress"; }' );
+		}
+
+		$action_status_ref = new ReflectionMethod( $sync, 'action_status' );
+		$action_status_ref->setAccessible( true );
+
+		self::assertSame( 'complete', $action_status_ref->invoke( $sync, 'STATUS_COMPLETE', 'fallback' ) );
+	}
 }

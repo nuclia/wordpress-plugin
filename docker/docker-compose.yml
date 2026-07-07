@@ -11,6 +11,8 @@ services:
   phpunit:
     image: php:8.1-cli
     working_dir: /plugin
+    environment:
+      PHPUNIT_COVERAGE: ${PHPUNIT_COVERAGE:-0}
     volumes:
       - ..:/plugin
     command: ["sh", "docker/scripts/run-phpunit.sh"]

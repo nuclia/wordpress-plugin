@@ -126,4 +126,40 @@ final class SettingsRepositoryTest extends TestCase {
 			get_option( SettingsRepository::OPTION_TAXONOMY_LABEL_MAP )
 		);
 	}
+
+	public function test_cache_helpers_clear_labels_and_option_names(): void {
+		$repository = new SettingsRepository();
+
+		$repository->set_labelsets_cache( [ 'Topic' ] );
+		$repository->set_labelset_labels_cache( 'Topic', [ 'Support', 'Docs' ] );
+
+		self::assertSame( [ 'Support', 'Docs' ], $repository->get_labelset_labels_cache( 'Topic' ) );
+
+		$repository->set_labelsets_cache_with_labels(
+			[ 'Audience' ],
+			[
+				'Audience' => [ 'General' ],
+				7          => [ 'Ignored' ],
+			]
+		);
+
+		self::assertSame( [ 'Audience' ], $repository->get_labelsets_cache()['labelsets'] );
+		self::assertSame( [ 'General' ], $repository->get_labelset_labels_cache( 'Audience' ) );
+
+		update_option( SettingsRepository::OPTION_TAXONOMY_LABEL_MAP, [ 'category' => [ 'labelset' => 'Topic' ] ] );
+		$repository->clear_labels();
+
+		self::assertSame( [], get_option( SettingsRepository::OPTION_TAXONOMY_LABEL_MAP ) );
+		self::assertSame( $repository->defaults()[ SettingsRepository::OPTION_LABELSETS_CACHE ], get_option( SettingsRepository::OPTION_LABELSETS_CACHE ) );
+		self::assertSame( array_keys( $repository->defaults() ), $repository->option_names() );
+	}
+
+	public function test_update_connection_settings_keeps_existing_token_when_empty_token_posted(): void {
+		$repository = new SettingsRepository();
+		update_option( SettingsRepository::OPTION_TOKEN, 'existing-token' );
+
+		$repository->update_connection_settings( 'europe-1', 'kb-123', 'account', '' );
+
+		self::assertSame( 'existing-token', get_option( SettingsRepository::OPTION_TOKEN ) );
+	}
 }

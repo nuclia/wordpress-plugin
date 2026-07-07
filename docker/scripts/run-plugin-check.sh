@@ -19,13 +19,35 @@ wp_cli() {
 	wp --allow-root --path="$wp_path" --url="$wp_url" "$@"
 }
 
+install_plugin_check() {
+	attempt=1
+	max_attempts=5
+	delay=5
+
+	while true; do
+		if wp_cli plugin install plugin-check --version="$plugin_check_version" --activate --force; then
+			return 0
+		fi
+
+		if [ "$attempt" -ge "$max_attempts" ]; then
+			echo "Unable to install Plugin Check $plugin_check_version after $attempt attempts." >&2
+			return 1
+		fi
+
+		attempt=$(( attempt + 1 ))
+		echo "Plugin Check install failed; retrying in $delay seconds (attempt $attempt of $max_attempts)." >&2
+		sleep "$delay"
+		delay=$(( delay * 2 ))
+	done
+}
+
 if ! wp_cli core is-installed >/dev/null 2>&1; then
 	echo "WordPress is not installed at $wp_path."
 	exit 1
 fi
 
 if ! wp_cli plugin is-installed plugin-check >/dev/null 2>&1; then
-	wp_cli plugin install plugin-check --version="$plugin_check_version" --activate
+	install_plugin_check
 else
 	wp_cli plugin activate plugin-check >/dev/null
 fi
