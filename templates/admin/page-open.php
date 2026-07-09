@@ -10,8 +10,9 @@ defined( 'ABSPATH' ) || exit;
 <div class="wrap progress-agentic-rag">
 	<div class="progress-agentic-rag__shell">
 		<header class="progress-agentic-rag__masthead">
-			<div>
-				<h1><?php esc_html_e( 'Progress Agentic RAG', 'progress-agentic-rag' ); ?></h1>
+			<div class="progress-agentic-rag__brand">
+				<img class="progress-agentic-rag__brand-logo" src="<?php echo esc_url( PROGRESS_AGENTIC_RAG_URL . 'assets/img/progress-logo.svg' ); ?>" alt="<?php esc_attr_e( 'Progress', 'progress-agentic-rag' ); ?>" />
+				<h1><?php esc_html_e( 'Agentic RAG', 'progress-agentic-rag' ); ?></h1>
 			</div>
 			<div class="progress-agentic-rag__summary" aria-label="<?php esc_attr_e( 'Connection summary', 'progress-agentic-rag' ); ?>">
 				<span class="progress-agentic-rag__summary-item">

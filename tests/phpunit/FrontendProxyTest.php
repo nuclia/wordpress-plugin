@@ -17,6 +17,9 @@ final class FrontendProxyTest extends TestCase {
 		$GLOBALS['progress_agentic_rag_test_filters'] = [];
 		$GLOBALS['progress_agentic_rag_test_enqueued_styles'] = [];
 		$GLOBALS['progress_agentic_rag_test_enqueued_scripts'] = [];
+		$GLOBALS['progress_agentic_rag_test_registered_scripts'] = [];
+		$GLOBALS['progress_agentic_rag_test_registered_blocks'] = [];
+		$GLOBALS['progress_agentic_rag_test_shortcodes'] = [];
 		$GLOBALS['progress_agentic_rag_test_http_requests'] = [];
 		$GLOBALS['progress_agentic_rag_test_http_responses'] = [];
 		$GLOBALS['progress_agentic_rag_test_query_vars'] = [];
@@ -24,6 +27,7 @@ final class FrontendProxyTest extends TestCase {
 		$GLOBALS['progress_agentic_rag_test_flushed_rewrite_rules'] = [];
 		$GLOBALS['progress_agentic_rag_test_is_admin'] = false;
 		$GLOBALS['progress_agentic_rag_test_is_front_page'] = true;
+		unset( $GLOBALS['post'] );
 		$_SERVER = [];
 
 		update_option( SettingsRepository::OPTION_ZONE, 'europe-1' );
@@ -32,31 +36,37 @@ final class FrontendProxyTest extends TestCase {
 		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'yes' );
 	}
 
-	public function test_search_widget_registers_assets_and_renders_once_without_token(): void {
+	public function test_search_widget_registers_explicit_placements_and_renders_without_token(): void {
 		$widget = new SearchWidget( new SettingsRepository() );
 		$widget->register();
 
 		self::assertContains( 'wp_enqueue_scripts', array_column( $GLOBALS['progress_agentic_rag_test_actions'], 'hook_name' ) );
-		self::assertContains( 'wp_body_open', array_column( $GLOBALS['progress_agentic_rag_test_actions'], 'hook_name' ) );
-		self::assertContains( 'wp_footer', array_column( $GLOBALS['progress_agentic_rag_test_actions'], 'hook_name' ) );
+		self::assertContains( 'init', array_column( $GLOBALS['progress_agentic_rag_test_actions'], 'hook_name' ) );
+		self::assertContains( 'elementor/widgets/register', array_column( $GLOBALS['progress_agentic_rag_test_actions'], 'hook_name' ) );
+		self::assertArrayHasKey( 'progress_agentic_rag_search', $GLOBALS['progress_agentic_rag_test_shortcodes'] );
 
+		$widget->register_block();
+
+		self::assertArrayHasKey( 'progress-agentic-rag/search', $GLOBALS['progress_agentic_rag_test_registered_blocks'] );
+		self::assertSame( 'progress-agentic-rag-search-block', $GLOBALS['progress_agentic_rag_test_registered_blocks']['progress-agentic-rag/search']['editor_script'] );
+
+		$GLOBALS['post'] = (object) [
+			'post_content' => '[progress_agentic_rag_search]',
+		];
 		$widget->enqueue_assets();
 
 		self::assertSame( 'progress-agentic-rag-frontend', $GLOBALS['progress_agentic_rag_test_enqueued_styles'][0]['handle'] );
 		self::assertSame( 'progress-agentic-rag-widget', $GLOBALS['progress_agentic_rag_test_enqueued_scripts'][0]['handle'] );
 
-		ob_start();
-		$widget->render();
-		$first_render = ob_get_clean();
-		ob_start();
-		$widget->render();
-		$second_render = ob_get_clean();
+		$first_render = $widget->shortcode( [ 'features' => 'answers,filter,bad<script>' ] );
+		$block_render = $widget->render_block( [ 'features' => [ 'suggestions' ] ] );
 
 		self::assertStringContainsString( 'nuclia-search-bar', $first_render );
 		self::assertStringContainsString( 'knowledgebox="kb-123"', $first_render );
 		self::assertStringContainsString( 'backend="https://example.test/index.php/nuclia-proxy/europe-1"', $first_render );
+		self::assertStringContainsString( 'features="answers,filter"', $first_render );
+		self::assertStringContainsString( 'features="suggestions"', $block_render );
 		self::assertStringNotContainsString( 'secret-token', $first_render );
-		self::assertSame( '', $second_render );
 	}
 
 	public function test_search_widget_does_not_render_when_context_or_settings_are_missing(): void {

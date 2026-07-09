@@ -75,6 +75,11 @@ final class ManualSync {
 			return new WP_Error( 'progress_agentic_rag_no_post_types', __( 'Select at least one content type to sync.', 'progress-agentic-rag' ) );
 		}
 
+		$reconcile = $this->api_client->reconcile_synced_resources();
+		if ( is_wp_error( $reconcile ) ) {
+			return $reconcile;
+		}
+
 		$entities = $this->unindexed_entities( $post_types );
 		$recovered = 0;
 		if ( ! empty( $entities ) ) {
@@ -160,6 +165,7 @@ final class ManualSync {
 			$state['status']     = 'complete';
 			$state['message']    = __( 'Manual sync complete.', 'progress-agentic-rag' );
 			$state['updated_at'] = time();
+			$state               = $this->record_history( $state, 'manual_sync', (int) ( $state['completed'] ?? 0 ) );
 			update_option( SettingsRepository::OPTION_MANUAL_SYNC_STATE, $state );
 		}
 
@@ -201,6 +207,67 @@ final class ManualSync {
 			'message'   => $message,
 			'percent'   => $total > 0 ? min( 100, (int) floor( ( $done / $total ) * 100 ) ) : 100,
 		];
+	}
+
+	/**
+	 * @return array<string, mixed>|WP_Error
+	 */
+	public function retry_failed_sync_items(): array|WP_Error {
+		if ( ! $this->scheduler_available() ) {
+			return new WP_Error( 'progress_agentic_rag_scheduler_missing', __( 'Background scheduling is not available.', 'progress-agentic-rag' ) );
+		}
+
+		if ( ! $this->settings->get_api_is_reachable() ) {
+			return new WP_Error( 'progress_agentic_rag_connection_missing', __( 'Validate the Progress Agentic RAG connection before retrying failed sync items.', 'progress-agentic-rag' ) );
+		}
+
+		if ( 'running' === ( $this->state()['status'] ?? '' ) || 'running' === ( $this->delete_state()['status'] ?? '' ) ) {
+			return new WP_Error( 'progress_agentic_rag_sync_running', __( 'Wait for the current sync operation to finish before retrying failed items.', 'progress-agentic-rag' ) );
+		}
+
+		$items = $this->settings->get_failed_sync_items();
+		if ( empty( $items ) ) {
+			$status              = $this->background_sync_status();
+			$status['scheduled'] = 0;
+			$status['message']   = __( 'No failed sync items are waiting for retry.', 'progress-agentic-rag' );
+			return $status;
+		}
+
+		$scheduled = 0;
+		foreach ( $items as $item ) {
+			$post_id   = (int) ( $item['post_id'] ?? 0 );
+			$post_type = (string) ( $item['post_type'] ?? '' );
+			$post      = get_post( $post_id );
+
+			if ( ! $post instanceof WP_Post || ! $this->is_selected_post_type( $post_type ) || ! $this->is_indexable_post( $post, $post_type ) || $this->is_background_sync_scheduled( $post_id, $post_type ) ) {
+				continue;
+			}
+
+			$background_id = $this->queue_background_sync( $this->entity_label( $post ) );
+			$this->schedule_single_action(
+				time() + ( $scheduled * 2 ),
+				self::HOOK_BACKGROUND_SYNC,
+				[
+					'post_id'       => $post_id,
+					'post_type'     => $post_type,
+					'background_id' => $background_id,
+				],
+				self::GROUP_BACKGROUND
+			);
+			$scheduled++;
+		}
+
+		$this->settings->clear_failed_sync_items();
+
+		$status              = $this->background_sync_status();
+		$status['scheduled'] = $scheduled;
+		$status['message']   = sprintf(
+			/* translators: %d is the number of failed sync items scheduled for retry. */
+			_n( 'Scheduled retry for %d failed sync item.', 'Scheduled retries for %d failed sync items.', $scheduled, 'progress-agentic-rag' ),
+			$scheduled
+		);
+
+		return $status;
 	}
 
 	/**
@@ -259,10 +326,10 @@ final class ManualSync {
 				update_option( SettingsRepository::OPTION_BACKGROUND_SYNC_STATE, $state );
 			}
 		}
-		$processed = min( $total, $completed + $failed );
-		$pending   = $this->count_background_actions( $this->action_status( 'STATUS_PENDING', 'pending' ) );
-		$running   = $this->count_background_actions( $this->action_status( 'STATUS_RUNNING', 'in-progress' ) );
-		$action_failed = $this->count_background_actions( $this->action_status( 'STATUS_FAILED', 'failed' ) );
+		$processed        = min( $total, $completed + $failed );
+		$pending          = $this->count_background_actions( $this->action_status( 'STATUS_PENDING', 'pending' ) );
+		$running          = $this->count_background_actions( $this->action_status( 'STATUS_RUNNING', 'in-progress' ) );
+		$action_failed    = $this->count_background_actions( $this->action_status( 'STATUS_FAILED', 'failed' ) );
 
 		if ( $total > 0 && $processed >= $total && 'running' === ( $state['status'] ?? '' ) ) {
 			$state['status']     = 'complete';
@@ -270,6 +337,7 @@ final class ManualSync {
 				? __( 'Automatic background sync finished with failures.', 'progress-agentic-rag' )
 				: __( 'Automatic background sync complete.', 'progress-agentic-rag' );
 			$state['updated_at'] = time();
+			$state               = $this->record_history( $state, 'automatic_sync', $completed );
 			update_option( SettingsRepository::OPTION_BACKGROUND_SYNC_STATE, $state );
 		}
 
@@ -280,6 +348,11 @@ final class ManualSync {
 				$processed,
 				$total
 			);
+		}
+
+		$percent = $total > 0 ? min( 100, (int) floor( ( $processed / $total ) * 100 ) ) : 100;
+		if ( $total > 0 && 'complete' === ( $state['status'] ?? '' ) && $failed > 0 ) {
+			$percent = min( 100, (int) floor( ( $completed / $total ) * 100 ) );
 		}
 
 		return [
@@ -294,7 +367,7 @@ final class ManualSync {
 			'action_failed' => $action_failed,
 			'current'       => (string) ( $state['current'] ?? __( 'No automatic sync running.', 'progress-agentic-rag' ) ),
 			'message'       => (string) ( $state['message'] ?? __( 'No automatic sync running.', 'progress-agentic-rag' ) ),
-			'percent'       => $total > 0 ? min( 100, (int) floor( ( $processed / $total ) * 100 ) ) : 100,
+			'percent'       => $percent,
 			'is_active'     => 'running' === ( $state['status'] ?? '' ) || $pending > 0 || $running > 0,
 		];
 	}
@@ -318,13 +391,35 @@ final class ManualSync {
 			return $status;
 		}
 
+		$post_types = $this->sanitize_post_types( array_keys( array_filter( $this->settings->get_indexable_post_types() ) ) );
+		if ( empty( $post_types ) ) {
+			return $this->background_sync_status();
+		}
+
+		$reconcile = $this->api_client->reconcile_synced_resources();
+		if ( is_wp_error( $reconcile ) ) {
+			return $this->background_sync_status();
+		}
+
+		$entities   = $this->unindexed_entities( $post_types );
+		if ( ! empty( $entities ) ) {
+			$post_ids = [];
+			foreach ( $entities as $entity ) {
+				$post_ids[] = $entity['post_id'];
+			}
+
+			$recovery = $this->api_client->recover_existing_resources( $post_ids );
+			if ( ! is_wp_error( $recovery ) && $recovery > 0 ) {
+				$entities = $this->unindexed_entities( $post_types );
+			}
+		}
+
 		$state = $this->background_state();
-		if ( ! $retry_failed && 'complete' === ( $state['status'] ?? '' ) && (int) ( $state['failed'] ?? 0 ) > 0 ) {
+		if ( ! $retry_failed && 'complete' === ( $state['status'] ?? '' ) && (int) ( $state['failed'] ?? 0 ) > 0 && ! empty( $this->settings->get_failed_sync_items() ) ) {
 			return $status;
 		}
 
-		$post_types = $this->sanitize_post_types( array_keys( array_filter( $this->settings->get_indexable_post_types() ) ) );
-		$scheduled  = $this->schedule_background_entities( $this->unindexed_entities( $post_types ) );
+		$scheduled  = $this->schedule_background_entities( $entities );
 		$status     = $this->background_sync_status();
 		$status['scheduled'] = $scheduled;
 
@@ -410,7 +505,22 @@ final class ManualSync {
 	public function delete_status(): array {
 		$state = $this->delete_state();
 		$total = (int) ( $state['total'] ?? 0 );
-		$done  = (int) ( $state['deleted'] ?? 0 ) + (int) ( $state['failed'] ?? 0 );
+		$deleted = (int) ( $state['deleted'] ?? 0 );
+		$failed  = (int) ( $state['failed'] ?? 0 );
+		$delete_id = (string) ( $state['id'] ?? '' );
+		if ( '' !== $delete_id ) {
+			$action_deleted = $this->count_delete_actions_for_id( $this->action_status( 'STATUS_COMPLETE', 'complete' ), $delete_id );
+			$action_failed  = $this->count_delete_actions_for_id( $this->action_status( 'STATUS_FAILED', 'failed' ), $delete_id );
+			$deleted        = max( $deleted, $action_deleted );
+			$failed         = max( $failed, $action_failed );
+			if ( $deleted !== (int) ( $state['deleted'] ?? 0 ) || $failed !== (int) ( $state['failed'] ?? 0 ) ) {
+				$state['deleted']    = $deleted;
+				$state['failed']     = $failed;
+				$state['updated_at'] = time();
+				update_option( SettingsRepository::OPTION_DELETE_SYNC_STATE, $state );
+			}
+		}
+		$done  = $deleted + $failed;
 		$done  = min( $total, $done );
 
 		if ( $total > 0 && $done >= $total && 'running' === ( $state['status'] ?? '' ) ) {
@@ -419,6 +529,7 @@ final class ManualSync {
 				? __( 'Synced resources deleted from Progress Agentic RAG. Local mappings and label settings cleared.', 'progress-agentic-rag' )
 				: __( 'Some synced resources could not be deleted. Label settings were cleared; local mappings were cleared only for successful deletions.', 'progress-agentic-rag' );
 			$state['updated_at'] = time();
+			$state               = $this->record_history( $state, 'delete_synced', (int) ( $state['deleted'] ?? 0 ) );
 			update_option( SettingsRepository::OPTION_DELETE_SYNC_STATE, $state );
 		}
 
@@ -442,9 +553,9 @@ final class ManualSync {
 			'id'        => (string) ( $state['id'] ?? '' ),
 			'status'    => (string) ( $state['status'] ?? 'idle' ),
 			'total'     => $total,
-			'deleted'   => (int) ( $state['deleted'] ?? 0 ),
-			'completed' => (int) ( $state['deleted'] ?? 0 ),
-			'failed'    => (int) ( $state['failed'] ?? 0 ),
+			'deleted'   => $deleted,
+			'completed' => $deleted,
+			'failed'    => $failed,
 			'processed' => $done,
 			'current'   => $current,
 			'message'   => $message,
@@ -506,6 +617,20 @@ final class ManualSync {
 			_n( 'Scheduled label update for %d synced resource.', 'Scheduled label updates for %d synced resources.', $scheduled, 'progress-agentic-rag' ),
 			$scheduled
 		);
+		$this->settings->add_sync_history_entry(
+			[
+				'id'          => $reprocess_id,
+				'type'        => 'label_reprocess',
+				'status'      => 'scheduled',
+				'total'       => $scheduled,
+				'completed'   => 0,
+				'failed'      => 0,
+				'message'     => $status['message'],
+				'current'     => '',
+				'started_at'  => time(),
+				'finished_at' => time(),
+			]
+		);
 
 		return $status;
 	}
@@ -515,8 +640,44 @@ final class ManualSync {
 
 		$status            = $this->label_reprocess_status();
 		$status['message'] = __( 'Label reprocessing cancelled.', 'progress-agentic-rag' );
+		$this->settings->add_sync_history_entry(
+			[
+				'type'        => 'label_reprocess',
+				'status'      => 'cancelled',
+				'total'       => (int) $status['pending'] + (int) $status['running'],
+				'completed'   => 0,
+				'failed'      => (int) $status['failed'],
+				'message'     => $status['message'],
+				'current'     => '',
+				'started_at'  => time(),
+				'finished_at' => time(),
+			]
+		);
 
 		return $status;
+	}
+
+	/**
+	 * @param list<string> $post_types Post type names removed from indexing.
+	 */
+	public function cancel_post_type_sync( array $post_types ): void {
+		$post_types = $this->sanitize_post_types( $post_types );
+		if ( empty( $post_types ) ) {
+			return;
+		}
+
+		$manual_cancelled     = 0;
+		$background_cancelled = 0;
+		$sync_id              = (string) ( $this->state()['id'] ?? '' );
+		$background_id        = (string) ( $this->background_state()['id'] ?? '' );
+
+		foreach ( $post_types as $post_type ) {
+			$manual_cancelled     += $this->cancel_pending_post_type_actions( self::HOOK_PROCESS_SINGLE, self::GROUP, $post_type, 'sync_id', $sync_id );
+			$background_cancelled += $this->cancel_pending_post_type_actions( self::HOOK_BACKGROUND_SYNC, self::GROUP_BACKGROUND, $post_type, 'background_id', $background_id );
+		}
+
+		$this->reduce_sync_total( SettingsRepository::OPTION_MANUAL_SYNC_STATE, $manual_cancelled );
+		$this->reduce_sync_total( SettingsRepository::OPTION_BACKGROUND_SYNC_STATE, $background_cancelled );
 	}
 
 	/**
@@ -548,19 +709,29 @@ final class ManualSync {
 			return;
 		}
 
+		if ( ! $this->is_selected_post_type( $post_type ) ) {
+			$this->settings->remove_failed_sync_item( $post_id, $post_type );
+			$this->mark_completed();
+			return;
+		}
+
 		$this->update_current( $this->entity_label( $post ) );
 
 		if ( ! $this->is_indexable_post( $post, $post_type ) || $this->get_resource_id( $post_id ) ) {
+			$this->settings->remove_failed_sync_item( $post_id, $post_type );
 			$this->mark_completed();
 			return;
 		}
 
 		$result = $this->api_client->index_post( $post );
 		if ( is_wp_error( $result ) ) {
-			$this->mark_failed( $this->entity_label( $post ) . ': ' . $this->error_message( $result ) );
+			$error = $this->error_message( $result );
+			$this->settings->add_failed_sync_item( $post_id, $post_type, $this->entity_label( $post ), $error, 'manual' );
+			$this->mark_failed( $this->entity_label( $post ) . ': ' . $error );
 			return;
 		}
 
+		$this->settings->remove_failed_sync_item( $post_id, $post_type );
 		$this->mark_completed();
 	}
 
@@ -721,11 +892,14 @@ final class ManualSync {
 
 		$result = $this->api_client->sync_post( $post );
 		if ( is_wp_error( $result ) ) {
-			$this->mark_background_failed( $this->entity_label( $post ) . ': ' . $this->error_message( $result ), $background_id );
+			$error = $this->error_message( $result );
+			$this->settings->add_failed_sync_item( $post_id, $post_type, $this->entity_label( $post ), $error, 'automatic' );
+			$this->mark_background_failed( $this->entity_label( $post ) . ': ' . $error, $background_id );
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message is sanitized by error_message().
-			throw new \RuntimeException( $this->error_message( $result ) );
+			throw new \RuntimeException( $error );
 		}
 
+		$this->settings->remove_failed_sync_item( $post_id, $post_type );
 		$this->mark_background_completed( $background_id );
 	}
 
@@ -850,6 +1024,25 @@ final class ManualSync {
 		}
 
 		return false;
+	}
+
+	private function cancel_pending_post_type_actions( string $hook, string $group, string $post_type, string $id_key, string $id ): int {
+		if ( '' === $id ) {
+			return 0;
+		}
+
+		$cancelled = 0;
+		foreach ( $this->scheduler->scheduled_actions( $hook, $group, $this->action_status( 'STATUS_PENDING', 'pending' ) ) as $action ) {
+			$args = $this->scheduled_action_args( $action );
+			if ( $post_type !== (string) ( $args['post_type'] ?? '' ) || $id !== (string) ( $args[ $id_key ] ?? '' ) ) {
+				continue;
+			}
+
+			$this->scheduler->unschedule_all_actions( $hook, $args, $group );
+			$cancelled++;
+		}
+
+		return $cancelled;
 	}
 
 	/**
@@ -1159,6 +1352,53 @@ final class ManualSync {
 		return is_array( $state ) ? $state : [];
 	}
 
+	private function reduce_sync_total( string $option_name, int $count ): void {
+		if ( $count <= 0 ) {
+			return;
+		}
+
+		$state = get_option( $option_name, [] );
+		if ( ! is_array( $state ) || 'running' !== ( $state['status'] ?? '' ) ) {
+			return;
+		}
+
+		$processed           = (int) ( $state['completed'] ?? 0 ) + (int) ( $state['failed'] ?? 0 );
+		$state['total']      = max( $processed, (int) ( $state['total'] ?? 0 ) - $count );
+		$state['updated_at'] = time();
+
+		update_option( $option_name, $state );
+	}
+
+	/**
+	 * @param array<string, mixed> $state Sync state.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function record_history( array $state, string $type, int $completed ): array {
+		if ( ! empty( $state['history_recorded'] ) ) {
+			return $state;
+		}
+
+		$this->settings->add_sync_history_entry(
+			[
+				'id'          => (string) ( $state['id'] ?? '' ),
+				'type'        => $type,
+				'status'      => (int) ( $state['failed'] ?? 0 ) > 0 ? 'failed' : 'complete',
+				'total'       => (int) ( $state['total'] ?? 0 ),
+				'completed'   => $completed,
+				'failed'      => (int) ( $state['failed'] ?? 0 ),
+				'message'     => (string) ( $state['message'] ?? '' ),
+				'current'     => (string) ( $state['current'] ?? '' ),
+				'started_at'  => (int) ( $state['started_at'] ?? 0 ),
+				'finished_at' => time(),
+			]
+		);
+
+		$state['history_recorded'] = true;
+
+		return $state;
+	}
+
 	public function scheduler_available(): bool {
 		return $this->scheduler->available();
 	}
@@ -1197,6 +1437,19 @@ final class ManualSync {
 				if ( $background_id === (string) ( $args['background_id'] ?? '' ) ) {
 					$count++;
 				}
+			}
+		}
+
+		return $count;
+	}
+
+	private function count_delete_actions_for_id( string $status, string $delete_id ): int {
+		$count = 0;
+
+		foreach ( $this->scheduler->scheduled_actions( self::HOOK_DELETE_RESOURCE, self::GROUP_DELETE, $status ) as $action ) {
+			$args = $this->scheduled_action_args( $action );
+			if ( $delete_id === (string) ( $args['delete_id'] ?? '' ) ) {
+				$count++;
 			}
 		}
 

@@ -319,6 +319,48 @@ final class ApiClientTest extends TestCase {
 		self::assertSame( 'seq-203', $GLOBALS['wpdb']->inserted[1]['data']['nuclia_seqid'] );
 	}
 
+	public function test_reconcile_synced_resources_clears_missing_upstream_mappings(): void {
+		$GLOBALS['wpdb']->results = [
+			(object) [
+				'post_id'      => '101',
+				'nuclia_rid'   => 'rid-old',
+				'nuclia_seqid' => 'seq-old',
+			],
+			(object) [
+				'post_id'      => '202',
+				'nuclia_rid'   => 'rid-missing',
+				'nuclia_seqid' => 'seq-missing',
+			],
+			(object) [
+				'post_id'      => '303',
+				'nuclia_rid'   => 'rid-303',
+				'nuclia_seqid' => 'seq-303',
+			],
+		];
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 200,
+			],
+			'body'     => '{"resources":[{"id":"rid-new","slug":"101","seqid":"seq-new"},{"id":"rid-303","slug":"303","seqid":"seq-303"}]}',
+		];
+
+		$result = ( new ApiClient( new SettingsRepository() ) )->reconcile_synced_resources();
+
+		self::assertSame(
+			[
+				'checked' => 3,
+				'removed' => 1,
+				'updated' => 1,
+			],
+			$result
+		);
+		self::assertSame( [ 'post_id' => 101 ], $GLOBALS['wpdb']->deleted[0]['where'] );
+		self::assertSame( [ 'post_id' => 202 ], $GLOBALS['wpdb']->deleted[1]['where'] );
+		self::assertSame( 101, $GLOBALS['wpdb']->inserted[0]['data']['post_id'] );
+		self::assertSame( 'rid-new', $GLOBALS['wpdb']->inserted[0]['data']['nuclia_rid'] );
+		self::assertSame( 'seq-new', $GLOBALS['wpdb']->inserted[0]['data']['nuclia_seqid'] );
+	}
+
 	public function test_get_labelsets_fetches_and_caches_embedded_labels(): void {
 		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
 			'response' => [

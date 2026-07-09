@@ -21,6 +21,8 @@ final class SettingsRepository {
 	public const OPTION_MANUAL_SYNC_STATE     = 'progress_agentic_rag_manual_sync_state';
 	public const OPTION_DELETE_SYNC_STATE     = 'progress_agentic_rag_delete_sync_state';
 	public const OPTION_BACKGROUND_SYNC_STATE = 'progress_agentic_rag_background_sync_state';
+	public const OPTION_SYNC_HISTORY          = 'progress_agentic_rag_sync_history';
+	public const OPTION_FAILED_SYNC_ITEMS     = 'progress_agentic_rag_failed_sync_items';
 	public const SYNC_TABLE_NAME             = 'agentic_rag_for_wp';
 
 	/**
@@ -46,6 +48,8 @@ final class SettingsRepository {
 			self::OPTION_MANUAL_SYNC_STATE     => [],
 			self::OPTION_DELETE_SYNC_STATE     => [],
 			self::OPTION_BACKGROUND_SYNC_STATE => [],
+			self::OPTION_SYNC_HISTORY          => [],
+			self::OPTION_FAILED_SYNC_ITEMS     => [],
 		];
 	}
 
@@ -79,7 +83,7 @@ final class SettingsRepository {
 	}
 
 	public function get_api_is_reachable(): bool {
-		return 'yes' === get_option( self::OPTION_API_IS_REACHABLE, 'no' );
+		return 'yes' === get_option( self::OPTION_API_IS_REACHABLE, 'no' ) && '' !== $this->get_string( self::OPTION_ZONE ) && '' !== $this->get_string( self::OPTION_KBID ) && $this->has_token();
 	}
 
 	public function set_api_is_reachable( bool $flag ): void {
@@ -273,6 +277,99 @@ final class SettingsRepository {
 		update_option( self::OPTION_LABELSETS_CACHE, $this->defaults()[ self::OPTION_LABELSETS_CACHE ] );
 	}
 
+	/**
+	 * @return list<array<string, mixed>>
+	 */
+	public function get_sync_history(): array {
+		$value = get_option( self::OPTION_SYNC_HISTORY, [] );
+		if ( ! is_array( $value ) ) {
+			return [];
+		}
+
+		$history = [];
+		foreach ( $value as $entry ) {
+			if ( is_array( $entry ) ) {
+				$history[] = $this->sanitize_sync_history_entry( $entry );
+			}
+		}
+
+		return array_slice( $history, 0, 10 );
+	}
+
+	/**
+	 * @param array<string, mixed> $entry Sync history entry.
+	 */
+	public function add_sync_history_entry( array $entry ): void {
+		$history   = $this->get_sync_history();
+		$history[] = $this->sanitize_sync_history_entry( $entry );
+
+		usort(
+			$history,
+			static fn ( array $a, array $b ): int => (int) ( $b['finished_at'] ?? 0 ) <=> (int) ( $a['finished_at'] ?? 0 )
+		);
+
+		update_option( self::OPTION_SYNC_HISTORY, array_slice( $history, 0, 10 ) );
+	}
+
+	/**
+	 * @return array<string, array<string, mixed>>
+	 */
+	public function get_failed_sync_items(): array {
+		$value = get_option( self::OPTION_FAILED_SYNC_ITEMS, [] );
+		if ( ! is_array( $value ) ) {
+			return [];
+		}
+
+		$items = [];
+		foreach ( $value as $item ) {
+			if ( ! is_array( $item ) ) {
+				continue;
+			}
+
+			$clean = $this->sanitize_failed_sync_item( $item );
+			if ( empty( $clean ) ) {
+				continue;
+			}
+
+			$items[ $clean['post_id'] . '|' . $clean['post_type'] ] = $clean;
+		}
+
+		return $items;
+	}
+
+	public function add_failed_sync_item( int $post_id, string $post_type, string $label, string $message, string $source ): void {
+		$item = $this->sanitize_failed_sync_item(
+			[
+				'post_id'   => $post_id,
+				'post_type' => $post_type,
+				'label'     => $label,
+				'message'   => $message,
+				'source'    => $source,
+				'failed_at' => time(),
+			]
+		);
+
+		if ( empty( $item ) ) {
+			return;
+		}
+
+		$items = $this->get_failed_sync_items();
+		$items[ $item['post_id'] . '|' . $item['post_type'] ] = $item;
+
+		update_option( self::OPTION_FAILED_SYNC_ITEMS, array_values( $items ) );
+	}
+
+	public function remove_failed_sync_item( int $post_id, string $post_type ): void {
+		$items = $this->get_failed_sync_items();
+		unset( $items[ $post_id . '|' . sanitize_key( $post_type ) ] );
+
+		update_option( self::OPTION_FAILED_SYNC_ITEMS, array_values( $items ) );
+	}
+
+	public function clear_failed_sync_items(): void {
+		update_option( self::OPTION_FAILED_SYNC_ITEMS, [] );
+	}
+
 	public function update_connection_settings( string $zone, string $kbid, string $account_id, string $token ): void {
 		update_option( self::OPTION_ZONE, self::normalize_zone( $zone ) );
 		update_option( self::OPTION_KBID, self::normalize_kbid( $kbid ) );
@@ -331,5 +428,48 @@ final class SettingsRepository {
 	 */
 	public function option_names(): array {
 		return array_keys( $this->defaults() );
+	}
+
+	/**
+	 * @param array<string, mixed> $entry Sync history entry.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function sanitize_sync_history_entry( array $entry ): array {
+		return [
+			'id'          => sanitize_text_field( (string) ( $entry['id'] ?? '' ) ),
+			'type'        => sanitize_key( (string) ( $entry['type'] ?? 'sync' ) ),
+			'status'      => sanitize_key( (string) ( $entry['status'] ?? 'complete' ) ),
+			'total'       => max( 0, (int) ( $entry['total'] ?? 0 ) ),
+			'completed'   => max( 0, (int) ( $entry['completed'] ?? 0 ) ),
+			'failed'      => max( 0, (int) ( $entry['failed'] ?? 0 ) ),
+			'message'     => sanitize_text_field( (string) ( $entry['message'] ?? '' ) ),
+			'current'     => sanitize_text_field( (string) ( $entry['current'] ?? '' ) ),
+			'started_at'  => max( 0, (int) ( $entry['started_at'] ?? 0 ) ),
+			'finished_at' => max( 0, (int) ( $entry['finished_at'] ?? time() ) ),
+		];
+	}
+
+	/**
+	 * @param array<string, mixed> $item Failed sync item.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function sanitize_failed_sync_item( array $item ): array {
+		$post_id   = max( 0, (int) ( $item['post_id'] ?? 0 ) );
+		$post_type = sanitize_key( (string) ( $item['post_type'] ?? '' ) );
+
+		if ( $post_id <= 0 || '' === $post_type ) {
+			return [];
+		}
+
+		return [
+			'post_id'   => $post_id,
+			'post_type' => $post_type,
+			'label'     => sanitize_text_field( (string) ( $item['label'] ?? '' ) ),
+			'message'   => sanitize_text_field( (string) ( $item['message'] ?? '' ) ),
+			'source'    => sanitize_key( (string) ( $item['source'] ?? 'sync' ) ),
+			'failed_at' => max( 0, (int) ( $item['failed_at'] ?? time() ) ),
+		];
 	}
 }

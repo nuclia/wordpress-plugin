@@ -37,8 +37,30 @@ export type BrowserExposure = {
   pageErrors: string[];
 };
 
+export type FixtureSettings = {
+  zone: string;
+  kbid: string;
+  account_id: string;
+  api_is_reachable: string;
+  token_saved: boolean;
+  token_hash: string;
+  backup_exists: boolean;
+};
+
+export async function loginAsAdmin(page: Page): Promise<void> {
+  await page.goto('/wp-login.php');
+  await page.locator('#user_login').fill(process.env.WP_ADMIN_USER || 'admin');
+  await page.locator('#user_pass').fill(process.env.WP_ADMIN_PASSWORD || 'admin123');
+  await page.locator('#wp-submit').click();
+  await page.waitForURL(/wp-admin/);
+}
+
 export async function resetFixture(request: APIRequestContext): Promise<void> {
   await e2eFetch(request, 'reset', { method: 'POST' });
+}
+
+export async function readFixtureSettings(request: APIRequestContext): Promise<FixtureSettings> {
+  return e2eFetch(request, 'settings');
 }
 
 export async function configureWidget(
@@ -162,7 +184,7 @@ export function collectBrowserExposure(page: Page): BrowserExposure {
 export async function gotoWidgetPage(page: Page): Promise<Response> {
   const cdnResponse = page.waitForResponse((response) => response.url() === CDN_WIDGET_URL, { timeout: 20000 });
 
-  await page.goto('/');
+  await page.goto('/?progress_agentic_rag_e2e_widget=1');
 
   return cdnResponse;
 }

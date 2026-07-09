@@ -12,6 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 const PROGRESS_AGENTIC_RAG_E2E_KEY_OPTION = 'progress_agentic_rag_e2e_key';
 const PROGRESS_AGENTIC_RAG_E2E_LOG_OPTION = 'progress_agentic_rag_e2e_requests';
 const PROGRESS_AGENTIC_RAG_E2E_STATE_OPTION = 'progress_agentic_rag_e2e_state';
+const PROGRESS_AGENTIC_RAG_E2E_BACKUP_OPTION = 'progress_agentic_rag_e2e_option_backup';
 
 add_action(
 	'rest_api_init',
@@ -48,6 +49,16 @@ add_action(
 
 		register_rest_route(
 			'progress-agentic-rag-e2e/v1',
+			'/settings',
+			[
+				'methods'             => 'GET',
+				'callback'            => 'progress_agentic_rag_e2e_settings',
+				'permission_callback' => 'progress_agentic_rag_e2e_can_access',
+			]
+		);
+
+		register_rest_route(
+			'progress-agentic-rag-e2e/v1',
 			'/logs',
 			[
 				'methods'             => 'GET',
@@ -59,9 +70,34 @@ add_action(
 );
 
 add_filter( 'pre_http_request', 'progress_agentic_rag_e2e_intercept_request', 10, 3 );
+add_action( 'wp_footer', 'progress_agentic_rag_e2e_render_shortcode_widget' );
+
+function progress_agentic_rag_e2e_settings(): WP_REST_Response {
+	$token = (string) get_option( 'nuclia_token', '' );
+
+	return rest_ensure_response(
+		[
+			'zone'             => (string) get_option( 'nuclia_zone', '' ),
+			'kbid'             => (string) get_option( 'nuclia_kbid', '' ),
+			'account_id'       => (string) get_option( 'nuclia_account_id', '' ),
+			'api_is_reachable' => (string) get_option( 'nuclia_api_is_reachable', '' ),
+			'token_saved'      => '' !== $token,
+			'token_hash'       => '' !== $token ? hash( 'sha256', $token ) : '',
+			'backup_exists'    => is_array( get_option( PROGRESS_AGENTIC_RAG_E2E_BACKUP_OPTION, null ) ),
+		]
+	);
+}
 
 function progress_agentic_rag_e2e_enabled(): bool {
 	return '' !== (string) get_option( PROGRESS_AGENTIC_RAG_E2E_KEY_OPTION, '' );
+}
+
+function progress_agentic_rag_e2e_render_shortcode_widget(): void {
+	if ( ! progress_agentic_rag_e2e_enabled() || ! isset( $_GET['progress_agentic_rag_e2e_widget'] ) ) {
+		return;
+	}
+
+	echo do_shortcode( '[progress_agentic_rag_search features="answers,rephrase,filter,suggestions"]' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Shortcode renderer escapes its template output.
 }
 
 function progress_agentic_rag_e2e_can_access( WP_REST_Request $request ): bool|WP_Error {
@@ -80,6 +116,7 @@ function progress_agentic_rag_e2e_can_access( WP_REST_Request $request ): bool|W
 }
 
 function progress_agentic_rag_e2e_reset(): WP_REST_Response {
+	progress_agentic_rag_e2e_restore_options();
 	update_option( PROGRESS_AGENTIC_RAG_E2E_LOG_OPTION, [] );
 	update_option(
 		PROGRESS_AGENTIC_RAG_E2E_STATE_OPTION,
@@ -100,6 +137,7 @@ function progress_agentic_rag_e2e_configure( WP_REST_Request $request ): WP_REST
 	$kbid      = isset( $params['kbid'] ) ? sanitize_text_field( (string) $params['kbid'] ) : 'ci-kb';
 	$token     = isset( $params['token'] ) ? sanitize_text_field( (string) $params['token'] ) : 'progress-agentic-rag-secret';
 
+	progress_agentic_rag_e2e_backup_options();
 	update_option( 'nuclia_zone', $connected ? $zone : '' );
 	update_option( 'nuclia_kbid', $connected ? $kbid : '' );
 	update_option( 'nuclia_token', $connected ? $token : '' );
@@ -112,6 +150,54 @@ function progress_agentic_rag_e2e_configure( WP_REST_Request $request ): WP_REST
 			'connected' => $connected,
 		]
 	);
+}
+
+function progress_agentic_rag_e2e_option_names(): array {
+	return [
+		'nuclia_zone',
+		'nuclia_kbid',
+		'nuclia_token',
+		'nuclia_account_id',
+		'nuclia_api_is_reachable',
+	];
+}
+
+function progress_agentic_rag_e2e_backup_options(): void {
+	$existing = get_option( PROGRESS_AGENTIC_RAG_E2E_BACKUP_OPTION, null );
+	if ( is_array( $existing ) ) {
+		return;
+	}
+
+	$missing = '__progress_agentic_rag_e2e_missing__';
+	$backup  = [];
+	foreach ( progress_agentic_rag_e2e_option_names() as $option_name ) {
+		$value = get_option( $option_name, $missing );
+		$backup[ $option_name ] = [
+			'exists' => $missing !== $value,
+			'value'  => $missing !== $value ? $value : null,
+		];
+	}
+
+	update_option( PROGRESS_AGENTIC_RAG_E2E_BACKUP_OPTION, $backup, false );
+}
+
+function progress_agentic_rag_e2e_restore_options(): void {
+	$backup = get_option( PROGRESS_AGENTIC_RAG_E2E_BACKUP_OPTION, null );
+	if ( ! is_array( $backup ) ) {
+		return;
+	}
+
+	foreach ( progress_agentic_rag_e2e_option_names() as $option_name ) {
+		$item = is_array( $backup[ $option_name ] ?? null ) ? $backup[ $option_name ] : [];
+		if ( empty( $item['exists'] ) ) {
+			delete_option( $option_name );
+			continue;
+		}
+
+		update_option( $option_name, $item['value'] ?? '' );
+	}
+
+	delete_option( PROGRESS_AGENTIC_RAG_E2E_BACKUP_OPTION );
 }
 
 function progress_agentic_rag_e2e_scenario( WP_REST_Request $request ): WP_REST_Response {
@@ -157,6 +243,11 @@ function progress_agentic_rag_e2e_intercept_request( mixed $preempt, array $args
 
 	$host = wp_parse_url( $url, PHP_URL_HOST );
 	if ( ! is_string( $host ) || ! str_ends_with( $host, '.rag.progress.cloud' ) ) {
+		return $preempt;
+	}
+
+	$path = (string) wp_parse_url( $url, PHP_URL_PATH );
+	if ( str_contains( $path, '/resource' ) || str_contains( $path, '/resources' ) ) {
 		return $preempt;
 	}
 

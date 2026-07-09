@@ -17,6 +17,16 @@ defined( 'ABSPATH' ) || exit;
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 		<input type="hidden" name="action" value="progress_agentic_rag_save_taxonomy_labeling" />
 		<?php wp_nonce_field( 'progress_agentic_rag_save_taxonomy_labeling' ); ?>
+		<?php if ( ! empty( $taxonomy_mapping_warnings ) ) : ?>
+			<div class="progress-agentic-rag__mapping-warnings" role="status">
+				<strong><?php esc_html_e( 'Mapping checks', 'progress-agentic-rag' ); ?></strong>
+				<ul>
+					<?php foreach ( $taxonomy_mapping_warnings as $warning ) : ?>
+						<li><?php echo esc_html( $warning ); ?></li>
+					<?php endforeach; ?>
+				</ul>
+			</div>
+		<?php endif; ?>
 		<?php require_once PROGRESS_AGENTIC_RAG_PATH . 'templates/admin/taxonomy-mapping.php'; ?>
 		<div class="progress-agentic-rag__label-reprocess" aria-live="polite">
 			<div>

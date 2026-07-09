@@ -43,8 +43,10 @@ defined( 'ABSPATH' ) || exit;
 				<input type="password" id="progress-agentic-rag-token" name="<?php echo esc_attr( $token_option_name ); ?>" value="" autocomplete="new-password" placeholder="<?php esc_attr_e( 'Stored token is never displayed', 'progress-agentic-rag' ); ?>" />
 			</label>
 		</div>
+		<div class="progress-agentic-rag__connection-test" data-progress-agentic-rag-connection-test-output aria-live="polite"></div>
 		<div class="progress-agentic-rag__actions">
 			<button type="submit" class="progress-agentic-rag__button progress-agentic-rag__button--primary"><?php esc_html_e( 'Save connection settings', 'progress-agentic-rag' ); ?></button>
+			<button type="button" class="progress-agentic-rag__button progress-agentic-rag__button--secondary" data-progress-agentic-rag-test-connection><?php esc_html_e( 'Test connection', 'progress-agentic-rag' ); ?></button>
 		</div>
 	</form>
 </section>

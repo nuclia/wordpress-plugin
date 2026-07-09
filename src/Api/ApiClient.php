@@ -309,7 +309,7 @@ final class ApiClient {
 	}
 
 	/**
-	 * @return list<object{post_id:string,nuclia_rid:string}>
+	 * @return list<object{post_id:string,nuclia_rid:string,nuclia_seqid?:string}>
 	 */
 	public function get_synced_resources(): array {
 		global $wpdb;
@@ -319,7 +319,7 @@ final class ApiClient {
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Reads plugin-owned sync table; values are prepared and the table name is escaped.
 		$results = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT post_id, nuclia_rid FROM {$table_name} WHERE nuclia_rid IS NOT NULL AND nuclia_rid != %s",
+				"SELECT post_id, nuclia_rid, nuclia_seqid FROM {$table_name} WHERE nuclia_rid IS NOT NULL AND nuclia_rid != %s",
 				''
 			)
 		);
@@ -361,6 +361,66 @@ final class ApiClient {
 		}
 
 		return $recovered;
+	}
+
+	/**
+	 * @return array{checked:int,removed:int,updated:int}|WP_Error
+	 */
+	public function reconcile_synced_resources(): array|WP_Error {
+		$mapped = [];
+
+		foreach ( $this->get_synced_resources() as $resource ) {
+			$post_id = isset( $resource->post_id ) ? (int) $resource->post_id : 0;
+			$rid     = isset( $resource->nuclia_rid ) ? sanitize_text_field( (string) $resource->nuclia_rid ) : '';
+			if ( $post_id <= 0 || '' === $rid ) {
+				continue;
+			}
+
+			$mapped[ (string) $post_id ] = [
+				'post_id' => $post_id,
+				'rid'     => $rid,
+				'seqid'   => isset( $resource->nuclia_seqid ) ? sanitize_text_field( (string) $resource->nuclia_seqid ) : '',
+			];
+		}
+
+		if ( empty( $mapped ) ) {
+			return [
+				'checked' => 0,
+				'removed' => 0,
+				'updated' => 0,
+			];
+		}
+
+		$resources = $this->find_resources_by_slugs( array_keys( $mapped ) );
+		if ( is_wp_error( $resources ) ) {
+			return $resources;
+		}
+
+		$removed = 0;
+		$updated = 0;
+		foreach ( $mapped as $slug => $local ) {
+			$resource = $resources[ $slug ] ?? [
+				'rid'   => '',
+				'seqid' => '',
+			];
+
+			if ( '' === $resource['rid'] ) {
+				$this->delete_index( $local['post_id'] );
+				$removed++;
+				continue;
+			}
+
+			if ( $resource['rid'] !== $local['rid'] || ( '' !== $resource['seqid'] && $resource['seqid'] !== $local['seqid'] ) ) {
+				$this->upsert_index( $local['post_id'], $resource['rid'], '' !== $resource['seqid'] ? $resource['seqid'] : $local['seqid'] );
+				$updated++;
+			}
+		}
+
+		return [
+			'checked' => count( $mapped ),
+			'removed' => $removed,
+			'updated' => $updated,
+		];
 	}
 
 	private function endpoint(): string {

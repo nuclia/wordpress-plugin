@@ -23,6 +23,7 @@ final class RuntimeIntegrationTest extends TestCase {
 		$GLOBALS['progress_agentic_rag_test_scheduled_actions'] = [];
 		$GLOBALS['progress_agentic_rag_test_options'] = [];
 		$GLOBALS['progress_agentic_rag_test_rewrite_rules'] = [];
+		$GLOBALS['progress_agentic_rag_test_shortcodes'] = [];
 		$GLOBALS['progress_agentic_rag_test_db_delta'] = [];
 		$GLOBALS['progress_agentic_rag_test_current_user_can'] = true;
 		$GLOBALS['wpdb'] = new ProgressAgenticRagTestWpdb();
@@ -36,8 +37,11 @@ final class RuntimeIntegrationTest extends TestCase {
 
 		self::assertContains( 'parse_request', $actions );
 		self::assertContains( 'wp_enqueue_scripts', $actions );
+		self::assertContains( 'init', $actions );
+		self::assertContains( 'elementor/widgets/register', $actions );
 		self::assertContains( 'progress_agentic_rag_manual_sync_post', $actions );
 		self::assertContains( 'admin_menu', $actions );
+		self::assertArrayHasKey( 'progress_agentic_rag_search', $GLOBALS['progress_agentic_rag_test_shortcodes'] );
 		self::assertContains( 'query_vars', $filters );
 		self::assertContains( 'redirect_canonical', $filters );
 	}

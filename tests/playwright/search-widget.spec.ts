@@ -19,13 +19,17 @@ import {
 } from './fixtures/helpers';
 
 test.beforeEach(async ({ request }) => {
-  await resetFixture(request);
-  await configureWidget(request);
-  await setUpstreamScenario(request, 'success');
+ await resetFixture(request);
+ await configureWidget(request);
+ await setUpstreamScenario(request, 'success');
 });
 
-test('front page renders the live CDN widget with the expected proxy contract', async ({ page }) => {
-  const exposure = collectBrowserExposure(page);
+test.afterEach(async ({ request }) => {
+  await resetFixture(request);
+});
+
+test('shortcode placement renders the live CDN widget with the expected proxy contract', async ({ page }) => {
+ const exposure = collectBrowserExposure(page);
   const cdnResponse = await gotoWidgetPage(page);
 
   expect(cdnResponse.status()).toBe(200);
@@ -54,7 +58,7 @@ test('widget and CDN are not exposed until the connection is complete and reacha
 
   for (const settings of cases) {
     await configureWidget(request, settings);
-    await page.goto(`/?case=${cases.indexOf(settings)}`);
+    await page.goto(`/?progress_agentic_rag_e2e_widget=1&case=${cases.indexOf(settings)}`);
 
     await expect(page.locator('[data-progress-agentic-rag-search-widget]')).toHaveCount(0);
     await expect(page.locator(`script[src="${CDN_WIDGET_URL}"]`)).toHaveCount(0);

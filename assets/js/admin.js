@@ -4,6 +4,14 @@
 	const deleteSyncedButton = document.querySelector( '[data-progress-agentic-rag-delete-synced]' );
 	const labelReprocessButton = document.querySelector( '[data-progress-agentic-rag-label-reprocess]' );
 	const labelReprocessCancelButton = document.querySelector( '[data-progress-agentic-rag-label-reprocess-cancel]' );
+	const testConnectionButton = document.querySelector( '[data-progress-agentic-rag-test-connection]' );
+	const connectionTestOutput = document.querySelector( '[data-progress-agentic-rag-connection-test-output]' );
+	const retryFailedButton = document.querySelector( '[data-progress-agentic-rag-retry-failed-sync]' );
+	const retryStatus = document.querySelector( '[data-progress-agentic-rag-retry-status]' );
+	const singleDeleteStatus = document.querySelector( '[data-progress-agentic-rag-single-delete-status]' );
+	const diagnosticsButton = document.querySelector( '[data-progress-agentic-rag-export-diagnostics]' );
+	const diagnosticsOutput = document.querySelector( '[data-progress-agentic-rag-diagnostics-output]' );
+	const diagnosticsStatus = document.querySelector( '[data-progress-agentic-rag-diagnostics-status]' );
 	const syncedCount = document.querySelector( '[data-progress-agentic-rag-synced-count]' );
 	const backgroundSync = document.querySelector( '[data-progress-agentic-rag-background-sync]' );
 	const backgroundLayout = backgroundSync ? backgroundSync.closest( '.progress-agentic-rag__indexation-layout' ) : null;
@@ -147,6 +155,38 @@
 		}
 
 		return payload.data;
+	};
+
+	const renderMessage = ( container, message, isError = false ) => {
+		if ( ! container ) {
+			return;
+		}
+
+		container.textContent = message || '';
+		container.classList.toggle( 'progress-agentic-rag__inline-message--error', Boolean( isError ) );
+	};
+
+	const connectionFormValues = () => {
+		const form = testConnectionButton ? testConnectionButton.closest( 'form' ) : null;
+		const values = {};
+
+		if ( ! form ) {
+			return values;
+		}
+
+		Array.from( form.querySelectorAll( 'input[name]' ) ).forEach( ( input ) => {
+			if ( input.name !== 'action' && input.name !== '_wpnonce' ) {
+				values[ input.name ] = input.value;
+			}
+		} );
+
+		return values;
+	};
+
+	const copyText = async ( text ) => {
+		if ( window.navigator.clipboard && window.navigator.clipboard.writeText ) {
+			await window.navigator.clipboard.writeText( text );
+		}
 	};
 
 	const openModal = () => {
@@ -584,6 +624,82 @@
 				} );
 			} catch ( error ) {
 				containers.filter( Boolean ).forEach( ( container ) => setMappingMessage( container, config.strings.mappingLabelsFailed ) );
+			}
+		} );
+	}
+
+	if ( testConnectionButton && connectionTestOutput ) {
+		testConnectionButton.addEventListener( 'click', async () => {
+			testConnectionButton.disabled = true;
+			renderMessage( connectionTestOutput, config.strings.testConnection || '' );
+
+			try {
+				const result = await request( 'progress_agentic_rag_test_connection', connectionFormValues() );
+				renderMessage( connectionTestOutput, ( result.checked_at_label ? result.checked_at_label + ': ' : '' ) + ( result.message || '' ), ! result.connected );
+			} catch ( error ) {
+				renderMessage( connectionTestOutput, error.message || config.strings.connectionTestFailed, true );
+			} finally {
+				testConnectionButton.disabled = false;
+			}
+		} );
+	}
+
+	if ( retryFailedButton ) {
+		retryFailedButton.addEventListener( 'click', async () => {
+			retryFailedButton.disabled = true;
+
+			try {
+				const status = await request( 'progress_agentic_rag_retry_failed_sync' );
+				renderMessage( retryStatus, status.message || '' );
+				renderBackgroundSyncStatus( status );
+			} catch ( error ) {
+				renderMessage( retryStatus, error.message || config.strings.retryFailed, true );
+				retryFailedButton.disabled = false;
+			}
+		} );
+	}
+
+	document.addEventListener( 'click', async ( event ) => {
+		const button = event.target.closest( '[data-progress-agentic-rag-delete-single-synced]' );
+		if ( ! button ) {
+			return;
+		}
+
+		const postId = button.dataset.progressAgenticRagDeleteSingleSynced;
+		if ( ! postId || ! window.confirm( config.strings.confirmDeleteSingle || '' ) ) {
+			return;
+		}
+
+		button.disabled = true;
+		renderMessage( singleDeleteStatus, config.strings.deleting || '' );
+
+		try {
+			const result = await request( 'progress_agentic_rag_delete_synced_resource', { post_id: postId } );
+			const row = button.closest( '[data-progress-agentic-rag-synced-row]' );
+			if ( row ) {
+				row.remove();
+			}
+			renderMessage( singleDeleteStatus, result.message || config.strings.deleteSingleComplete || '' );
+		} catch ( error ) {
+			button.disabled = false;
+			renderMessage( singleDeleteStatus, error.message || config.strings.deleteSingleFailed, true );
+		}
+	} );
+
+	if ( diagnosticsButton && diagnosticsOutput ) {
+		diagnosticsButton.addEventListener( 'click', async () => {
+			diagnosticsButton.disabled = true;
+
+			try {
+				const data = await request( 'progress_agentic_rag_export_diagnostics' );
+				const text = JSON.stringify( data.diagnostics || {}, null, 2 );
+				diagnosticsOutput.value = text;
+				await copyText( text );
+				renderMessage( diagnosticsStatus, config.strings.diagnosticsCopied || '' );
+			} catch ( error ) {
+				renderMessage( diagnosticsStatus, error.message || config.strings.diagnosticsFailed, true );
+			} finally {
+				diagnosticsButton.disabled = false;
 			}
 		} );
 	}

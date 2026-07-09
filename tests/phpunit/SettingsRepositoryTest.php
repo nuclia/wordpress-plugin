@@ -24,6 +24,8 @@ final class SettingsRepositoryTest extends TestCase {
 		self::assertArrayHasKey( SettingsRepository::OPTION_KBID, $defaults );
 		self::assertArrayHasKey( SettingsRepository::OPTION_ACCOUNT_ID, $defaults );
 		self::assertArrayHasKey( SettingsRepository::OPTION_BACKGROUND_SYNC_STATE, $defaults );
+		self::assertArrayHasKey( SettingsRepository::OPTION_SYNC_HISTORY, $defaults );
+		self::assertArrayHasKey( SettingsRepository::OPTION_FAILED_SYNC_ITEMS, $defaults );
 		self::assertSame( 'agentic_rag_for_wp', SettingsRepository::SYNC_TABLE_NAME );
 	}
 
@@ -54,6 +56,21 @@ final class SettingsRepositoryTest extends TestCase {
 		);
 
 		self::assertSame( 'europe-1', $repository->get_string( SettingsRepository::OPTION_ZONE ) );
+	}
+
+	public function test_api_reachable_requires_complete_connection_settings(): void {
+		$repository = new SettingsRepository();
+
+		update_option( SettingsRepository::OPTION_ZONE, 'europe-1' );
+		update_option( SettingsRepository::OPTION_KBID, 'kb-123' );
+		update_option( SettingsRepository::OPTION_TOKEN, 'token' );
+		update_option( SettingsRepository::OPTION_API_IS_REACHABLE, 'yes' );
+
+		self::assertTrue( $repository->get_api_is_reachable() );
+
+		update_option( SettingsRepository::OPTION_TOKEN, '' );
+
+		self::assertFalse( $repository->get_api_is_reachable() );
 	}
 
 	public function test_taxonomy_label_map_sanitizes_terms_and_fallback_labels(): void {
@@ -161,5 +178,38 @@ final class SettingsRepositoryTest extends TestCase {
 		$repository->update_connection_settings( 'europe-1', 'kb-123', 'account', '' );
 
 		self::assertSame( 'existing-token', get_option( SettingsRepository::OPTION_TOKEN ) );
+	}
+
+	public function test_sync_history_and_failed_items_are_sanitized(): void {
+		$repository = new SettingsRepository();
+
+		$repository->add_sync_history_entry(
+			[
+				'type'        => 'manual<script>',
+				'status'      => 'failed',
+				'total'       => 3,
+				'completed'   => 2,
+				'failed'      => 1,
+				'message'     => '<b>Done</b>',
+				'current'     => '<i>Post</i>',
+				'started_at'  => 10,
+				'finished_at' => 20,
+			]
+		);
+		$repository->add_failed_sync_item( 31, 'post<script>', '<b>Post title</b>', '<i>Rejected</i>', 'manual<script>' );
+
+		$history = $repository->get_sync_history();
+		$failed  = array_values( $repository->get_failed_sync_items() );
+
+		self::assertSame( 'manualscript', $history[0]['type'] );
+		self::assertSame( 'Done', $history[0]['message'] );
+		self::assertSame( 'Post', $history[0]['current'] );
+		self::assertSame( 31, $failed[0]['post_id'] );
+		self::assertSame( 'postscript', $failed[0]['post_type'] );
+		self::assertSame( 'Post title', $failed[0]['label'] );
+		self::assertSame( 'Rejected', $failed[0]['message'] );
+
+		$repository->remove_failed_sync_item( 31, 'postscript' );
+		self::assertSame( [], $repository->get_failed_sync_items() );
 	}
 }

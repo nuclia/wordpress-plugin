@@ -1,6 +1,6 @@
 <?php
 /**
- * Front page search widget markup.
+ * Frontend search widget markup.
  *
  * @package ProgressAgenticRag
  */
@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 		zone="<?php echo esc_attr( $zone ); ?>"
 		backend="<?php echo esc_url( $proxy_url ); ?>"
 		proxy="true"
-		features="answers,rephrase,filter,suggestions"
+		features="<?php echo esc_attr( $widget_options['features'] ); ?>"
 	></nuclia-search-bar>
 	<nuclia-search-results></nuclia-search-results>
 </div>

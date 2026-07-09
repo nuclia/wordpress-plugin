@@ -43,6 +43,9 @@ $GLOBALS['progress_agentic_rag_test_rewrite_rules'] = [];
 $GLOBALS['progress_agentic_rag_test_flushed_rewrite_rules'] = [];
 $GLOBALS['progress_agentic_rag_test_enqueued_styles'] = [];
 $GLOBALS['progress_agentic_rag_test_enqueued_scripts'] = [];
+$GLOBALS['progress_agentic_rag_test_registered_scripts'] = [];
+$GLOBALS['progress_agentic_rag_test_registered_blocks'] = [];
+$GLOBALS['progress_agentic_rag_test_shortcodes'] = [];
 $GLOBALS['progress_agentic_rag_test_localized_scripts'] = [];
 $GLOBALS['progress_agentic_rag_test_menu_pages'] = [];
 $GLOBALS['progress_agentic_rag_test_safe_redirects'] = [];
@@ -337,10 +340,30 @@ if ( ! function_exists( 'wp_enqueue_script' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_register_script' ) ) {
+	function wp_register_script( string $handle, string $src = '', array $deps = [], string|bool|null $ver = false, bool|array $args = false ): bool {
+		$GLOBALS['progress_agentic_rag_test_registered_scripts'][] = compact( 'handle', 'src', 'deps', 'ver', 'args' );
+		return true;
+	}
+}
+
 if ( ! function_exists( 'wp_localize_script' ) ) {
 	function wp_localize_script( string $handle, string $object_name, array $l10n ): bool {
 		$GLOBALS['progress_agentic_rag_test_localized_scripts'][] = compact( 'handle', 'object_name', 'l10n' );
 		return true;
+	}
+}
+
+if ( ! function_exists( 'add_shortcode' ) ) {
+	function add_shortcode( string $tag, mixed $callback ): void {
+		$GLOBALS['progress_agentic_rag_test_shortcodes'][ $tag ] = $callback;
+	}
+}
+
+if ( ! function_exists( 'register_block_type' ) ) {
+	function register_block_type( string $block_type, array $args = [] ): string {
+		$GLOBALS['progress_agentic_rag_test_registered_blocks'][ $block_type ] = $args;
+		return $block_type;
 	}
 }
 
@@ -690,7 +713,7 @@ if ( ! function_exists( 'as_unschedule_all_actions' ) ) {
 		$GLOBALS['progress_agentic_rag_test_scheduled_actions'] = array_values(
 			array_filter(
 				$GLOBALS['progress_agentic_rag_test_scheduled_actions'],
-				static fn ( array $action ): bool => $hook !== $action['hook'] || $group !== $action['group']
+				static fn ( array $action ): bool => $hook !== $action['hook'] || $group !== $action['group'] || ( null !== $args && $args !== $action['args'] )
 			)
 		);
 	}
