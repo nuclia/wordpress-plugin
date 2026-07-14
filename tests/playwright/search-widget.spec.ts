@@ -34,6 +34,7 @@ test('shortcode placement renders the live CDN widget with the expected proxy co
 
   expect(cdnResponse.status()).toBe(200);
   await expect(page.locator(`script[src="${CDN_WIDGET_URL}"]`)).toHaveCount(1);
+  await expect(page.locator('script[src*="/progress-agentic-rag/assets/js/frontend.js"]')).toHaveCount(1);
 
   const attributes = await waitForWidgetReady(page);
   expect(attributes.knowledgebox).toBe(TEST_KBID);
@@ -43,8 +44,91 @@ test('shortcode placement renders the live CDN widget with the expected proxy co
   expect(attributes.features).toBe('answers,rephrase,filter,suggestions');
   expect(attributes.apikey).toBeUndefined();
 
+  const responseAttributes = await page.locator('nuclia-search-results').evaluate((element) => {
+    return Object.fromEntries(element.getAttributeNames().map((name) => [name, element.getAttribute(name)]));
+  });
+  expect(responseAttributes.csspath).toContain('/assets/css/widget-response.css?ver=');
+  expect(responseAttributes.style).toContain('--progress-agentic-rag-widget-accent-color:#');
+  expect(responseAttributes.style).toContain('--progress-agentic-rag-widget-card-padding:');
+
+  const responseHostStyle = await page.locator('nuclia-search-results').evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { borderWidth: style.borderWidth, display: style.display };
+  });
+  expect(responseHostStyle).toEqual({ borderWidth: '0px', display: 'block' });
+
   await assertNoTokenLeak(page, exposure);
   expect(exposure.pageErrors).toEqual([]);
+});
+
+test('widget keeps its page position when Enter triggers a search', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes('mobile'), 'Scroll position only needs one browser project.');
+
+  await gotoWidgetPage(page);
+  await waitForWidgetReady(page);
+
+  await page.locator('[data-progress-agentic-rag-search-widget]').evaluate((container) => {
+    const spacer = document.createElement('div');
+    spacer.style.height = '900px';
+    container.before(spacer);
+    document.documentElement.style.scrollBehavior = 'auto';
+  });
+
+  const input = page.locator('nuclia-search-bar textarea');
+  await input.fill('scroll position search query');
+  await page.evaluate(() => window.scrollTo(0, 600));
+  await page.waitForTimeout(50);
+  const scrollBeforeSearch = await page.evaluate(() => window.scrollY);
+  expect(scrollBeforeSearch).toBeGreaterThan(0);
+  await input.press('Enter');
+  await page.waitForTimeout(250);
+
+  expect(Math.abs(await page.evaluate(() => window.scrollY) - scrollBeforeSearch)).toBeLessThanOrEqual(8);
+});
+
+test('widget keeps its page position when a result opens the document viewer', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes('mobile'), 'Scroll position only needs one browser project.');
+
+  await gotoWidgetPage(page);
+  await waitForWidgetReady(page);
+
+  const scrollBeforeOpen = await page.locator('nuclia-search-results').evaluate((results) => {
+    const spacer = document.createElement('div');
+    spacer.style.height = '900px';
+    results.closest('[data-progress-agentic-rag-search-widget]')?.before(spacer);
+    document.documentElement.style.scrollBehavior = 'auto';
+    window.scrollTo(0, 600);
+
+    const title = document.createElement('button');
+    title.className = 'result-title';
+    title.textContent = 'Open fixture document';
+    title.addEventListener('click', () => {
+      document.body.style.position = 'fixed';
+      document.body.style.top = '0px';
+    });
+    results.shadowRoot?.append(title);
+
+    return window.scrollY;
+  });
+
+  expect(scrollBeforeOpen).toBeGreaterThan(0);
+  await page.locator('nuclia-search-results').evaluate((results) => {
+    (results.shadowRoot?.querySelector('.result-title') as HTMLButtonElement | null)?.click();
+  });
+  await page.waitForTimeout(50);
+
+  const lockedBodyTop = await page.evaluate(() => document.body.style.top);
+  expect(lockedBodyTop).toBe(`-${scrollBeforeOpen}px`);
+
+  await page.evaluate(() => {
+    const bodyTop = document.body.style.top;
+    document.body.style.position = '';
+    document.body.style.top = '';
+    window.setTimeout(() => window.scrollTo(0, Number.parseInt(bodyTop || '0', 10) * -1));
+  });
+  await page.waitForTimeout(50);
+
+  expect(Math.abs(await page.evaluate(() => window.scrollY) - scrollBeforeOpen)).toBeLessThanOrEqual(8);
 });
 
 test('widget and CDN are not exposed until the connection is complete and reachable', async ({ page, request }, testInfo) => {

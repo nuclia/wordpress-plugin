@@ -202,6 +202,7 @@ body.toplevel_page_progress-agentic-rag #wpcontent {
 .progress-agentic-rag__tab:focus-visible,
 .progress-agentic-rag__button:focus-visible,
 .progress-agentic-rag__field input:focus-visible,
+.progress-agentic-rag__field select:focus-visible,
 .progress-agentic-rag__mapping-control select:focus-visible,
 .progress-agentic-rag__mapping-select select:focus-visible,
 .progress-agentic-rag__modal-close:focus-visible {
@@ -380,6 +381,7 @@ body.toplevel_page_progress-agentic-rag #wpcontent {
 }
 
 .progress-agentic-rag__field input,
+.progress-agentic-rag__field select,
 .progress-agentic-rag__mapping-control select,
 .progress-agentic-rag__mapping-select select {
 	background-color: var(--progress-agentic-rag-field-bg);
@@ -394,9 +396,20 @@ body.toplevel_page_progress-agentic-rag #wpcontent {
 }
 
 .progress-agentic-rag__field input:hover,
+.progress-agentic-rag__field select:hover,
 .progress-agentic-rag__mapping-control select:hover,
 .progress-agentic-rag__mapping-select select:hover {
 	border-color: var(--progress-agentic-rag-field-border-hover-color);
+}
+
+.progress-agentic-rag__field input[type="color"] {
+	max-width: 8rem;
+	padding: var(--progress-agentic-rag-space-05);
+}
+
+.progress-agentic-rag__field small {
+	color: var(--progress-agentic-rag-color-neutral-regular);
+	font-size: var(--progress-agentic-rag-font-size-xs);
 }
 
 .progress-agentic-rag__mapping {

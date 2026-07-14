@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { assertNoTokenLeak, collectBrowserExposure, configureWidget, loginAsAdmin, readFixtureSettings, resetFixture, TEST_TOKEN } from './fixtures/helpers';
+import { assertNoTokenLeak, collectBrowserExposure, configureWidget, gotoWidgetPage, loginAsAdmin, readFixtureSettings, resetFixture, TEST_TOKEN, waitForWidgetReady } from './fixtures/helpers';
 
 test.afterEach(async ({ request }) => {
   await resetFixture(request);
@@ -68,6 +68,7 @@ test('admin tabs expose safe operations without leaking the service token', asyn
   await expect(page.getByRole('heading', { name: 'Gutenberg block' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Elementor widget' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Widget options' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Response appearance' })).toBeVisible();
   await expect(page.getByText('[progress_agentic_rag_search features="answers,rephrase,filter,suggestions"]')).toBeVisible();
   await expect(page.getByText('answers, rephrase, filter, suggestions')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Automatic front page' })).toHaveCount(0);
@@ -82,4 +83,31 @@ test('admin tabs expose safe operations without leaking the service token', asyn
   await page.locator('[data-progress-agentic-rag-test-connection]').click();
   await expect(page.locator('[data-progress-agentic-rag-connection-test-output]')).toContainText('Progress Agentic RAG validated the connection successfully.');
   await expect(page.locator('body')).not.toContainText(TEST_TOKEN);
+});
+
+test('response appearance settings persist validated admin choices', async ({ page, request }) => {
+  await resetFixture(request);
+  await configureWidget(request);
+  await loginAsAdmin(page);
+  await page.goto('/wp-admin/admin.php?page=progress-agentic-rag&tab=search-widget');
+
+  await page.getByLabel('Accent color').fill('#123456');
+  await page.getByLabel('Base font size').fill('18');
+  await page.getByLabel('Font family').selectOption('inter');
+  await page.getByLabel('Card shadow').selectOption('subtle');
+  await page.getByRole('button', { name: 'Save response appearance' }).click();
+
+  await expect(page).toHaveURL(/tab=search-widget/);
+  await expect(page.getByLabel('Accent color')).toHaveValue('#123456');
+  await expect(page.getByLabel('Base font size')).toHaveValue('18');
+  await expect(page.getByLabel('Font family')).toHaveValue('inter');
+  await expect(page.getByLabel('Card shadow')).toHaveValue('subtle');
+
+  await gotoWidgetPage(page);
+  await waitForWidgetReady(page);
+  const responseStyle = await page.locator('nuclia-search-results').getAttribute('style');
+  expect(responseStyle).toContain('--progress-agentic-rag-widget-accent-color:#123456');
+  expect(responseStyle).toContain('--progress-agentic-rag-widget-font-family:Inter, Arial, sans-serif');
+  expect(responseStyle).toContain('--progress-agentic-rag-widget-font-size:18px');
+  expect(responseStyle).toContain('--progress-agentic-rag-widget-shadow:0 1px 2px');
 });

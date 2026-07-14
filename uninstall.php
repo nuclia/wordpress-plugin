@@ -20,6 +20,7 @@ $progress_agentic_rag_options = [
 	'nuclia_indexable_post_types',
 	'progress_agentic_rag_manual_sync_state',
 	'progress_agentic_rag_delete_sync_state',
+	'progress_agentic_rag_widget_appearance',
 ];
 
 foreach ( $progress_agentic_rag_options as $progress_agentic_rag_option ) {

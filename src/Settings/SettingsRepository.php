@@ -23,6 +23,7 @@ final class SettingsRepository {
 	public const OPTION_BACKGROUND_SYNC_STATE = 'progress_agentic_rag_background_sync_state';
 	public const OPTION_SYNC_HISTORY          = 'progress_agentic_rag_sync_history';
 	public const OPTION_FAILED_SYNC_ITEMS     = 'progress_agentic_rag_failed_sync_items';
+	public const OPTION_WIDGET_APPEARANCE     = 'progress_agentic_rag_widget_appearance';
 	public const SYNC_TABLE_NAME             = 'agentic_rag_for_wp';
 
 	/**
@@ -50,6 +51,26 @@ final class SettingsRepository {
 			self::OPTION_BACKGROUND_SYNC_STATE => [],
 			self::OPTION_SYNC_HISTORY          => [],
 			self::OPTION_FAILED_SYNC_ITEMS     => [],
+			self::OPTION_WIDGET_APPEARANCE     => self::widget_appearance_defaults(),
+		];
+	}
+
+	/**
+	 * @return array<string, string|int|float>
+	 */
+	public static function widget_appearance_defaults(): array {
+		return [
+			'accent_color'  => '#054bff',
+			'text_color'    => '#000000',
+			'muted_color'   => '#707070',
+			'surface_color' => '#ffffff',
+			'border_color'  => '#e6e6e6',
+			'font_family'   => 'roboto',
+			'font_size'     => 16,
+			'line_height'   => 1.5,
+			'border_radius' => 8,
+			'card_padding'  => 24,
+			'shadow'        => 'soft',
 		];
 	}
 
@@ -106,6 +127,50 @@ final class SettingsRepository {
 		$value = get_option( self::OPTION_TAXONOMY_LABEL_MAP, $this->defaults()[ self::OPTION_TAXONOMY_LABEL_MAP ] );
 
 		return is_array( $value ) ? $this->sanitize_taxonomy_label_map( $value ) : [];
+	}
+
+	/**
+	 * @return array<string, string|int|float>
+	 */
+	public function get_widget_appearance(): array {
+		$value = get_option( self::OPTION_WIDGET_APPEARANCE, self::widget_appearance_defaults() );
+
+		return $this->sanitize_widget_appearance( is_array( $value ) ? $value : [] );
+	}
+
+	/**
+	 * @param array<string, mixed> $value Raw widget appearance form data.
+	 */
+	public function update_widget_appearance( array $value ): void {
+		update_option( self::OPTION_WIDGET_APPEARANCE, $this->sanitize_widget_appearance( $value ) );
+	}
+
+	/**
+	 * @param array<string, mixed> $value Raw widget appearance form data.
+	 *
+	 * @return array<string, string|int|float>
+	 */
+	public function sanitize_widget_appearance( array $value ): array {
+		$defaults = self::widget_appearance_defaults();
+		$fonts    = [ 'roboto', 'inter', 'system' ];
+		$shadows  = [ 'none', 'subtle', 'soft' ];
+
+		foreach ( [ 'accent_color', 'text_color', 'muted_color', 'surface_color', 'border_color' ] as $key ) {
+			$color = sanitize_hex_color( (string) ( $value[ $key ] ?? '' ) );
+			$defaults[ $key ] = is_string( $color ) ? strtolower( $color ) : $defaults[ $key ];
+		}
+
+		$font_family = sanitize_key( (string) ( $value['font_family'] ?? '' ) );
+		$shadow      = sanitize_key( (string) ( $value['shadow'] ?? '' ) );
+
+		$defaults['font_family']   = in_array( $font_family, $fonts, true ) ? $font_family : $defaults['font_family'];
+		$defaults['font_size']     = $this->bounded_int( $value['font_size'] ?? null, (int) $defaults['font_size'], 12, 24 );
+		$defaults['line_height']   = $this->bounded_float( $value['line_height'] ?? null, (float) $defaults['line_height'], 1.2, 2 );
+		$defaults['border_radius'] = $this->bounded_int( $value['border_radius'] ?? null, (int) $defaults['border_radius'], 0, 24 );
+		$defaults['card_padding']  = $this->bounded_int( $value['card_padding'] ?? null, (int) $defaults['card_padding'], 8, 48 );
+		$defaults['shadow']        = in_array( $shadow, $shadows, true ) ? $shadow : $defaults['shadow'];
+
+		return $defaults;
 	}
 
 	/**
@@ -428,6 +493,22 @@ final class SettingsRepository {
 	 */
 	public function option_names(): array {
 		return array_keys( $this->defaults() );
+	}
+
+	private function bounded_int( mixed $value, int $default, int $minimum, int $maximum ): int {
+		if ( ! is_numeric( $value ) ) {
+			return $default;
+		}
+
+		return min( $maximum, max( $minimum, (int) $value ) );
+	}
+
+	private function bounded_float( mixed $value, float $default, float $minimum, float $maximum ): float {
+		if ( ! is_numeric( $value ) ) {
+			return $default;
+		}
+
+		return min( $maximum, max( $minimum, (float) $value ) );
 	}
 
 	/**

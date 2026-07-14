@@ -6,6 +6,11 @@
 	width: 100%;
 }
 
+.progress-agentic-rag-search-widget nuclia-search-results {
+	border: 0;
+	display: block;
+}
+
 .progress-agentic-rag-search-widget *,
 .progress-agentic-rag-search-widget *::before,
 .progress-agentic-rag-search-widget *::after {

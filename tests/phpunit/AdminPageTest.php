@@ -78,6 +78,7 @@ final class AdminPageTest extends TestCase {
 
 		self::assertContains( 'admin_menu', $actions );
 		self::assertContains( 'admin_enqueue_scripts', $actions );
+		self::assertContains( 'admin_post_progress_agentic_rag_save_widget_appearance', $actions );
 		self::assertContains( 'wp_ajax_progress_agentic_rag_manual_sync_start', $actions );
 		self::assertContains( 'wp_ajax_progress_agentic_rag_get_labelset_labels', $actions );
 		self::assertContains( 'wp_ajax_progress_agentic_rag_test_connection', $actions );
@@ -164,6 +165,8 @@ final class AdminPageTest extends TestCase {
 			self::assertStringContainsString( $heading, $output );
 			if ( 'search-widget' === $tab ) {
 				self::assertStringContainsString( 'Open Progress Agentic RAG dashboard', $tab_output );
+				self::assertStringContainsString( 'Response appearance', $tab_output );
+				self::assertStringContainsString( 'progress_agentic_rag_widget_appearance[accent_color]', $tab_output );
 				self::assertStringContainsString( 'Gutenberg block', $tab_output );
 				self::assertStringContainsString( 'Elementor widget', $tab_output );
 				self::assertStringContainsString( 'Widget options', $tab_output );
@@ -457,7 +460,7 @@ final class AdminPageTest extends TestCase {
 	public function test_other_save_handlers_die_for_unauthorized_user(): void {
 		$GLOBALS['progress_agentic_rag_test_current_user_can'] = false;
 
-		foreach ( [ 'save_indexation_settings', 'save_taxonomy_labeling_settings' ] as $method ) {
+		foreach ( [ 'save_indexation_settings', 'save_taxonomy_labeling_settings', 'save_widget_appearance_settings' ] as $method ) {
 			try {
 				$this->admin_page()->{$method}();
 				self::fail( 'Expected wp_die.' );
@@ -618,6 +621,35 @@ final class AdminPageTest extends TestCase {
 			],
 			get_option( SettingsRepository::OPTION_TAXONOMY_LABEL_MAP )
 		);
+	}
+
+	public function test_save_widget_appearance_settings_sanitizes_and_redirects(): void {
+		$_POST = [
+			SettingsRepository::OPTION_WIDGET_APPEARANCE => [
+				'accent_color'  => '#123456',
+				'text_color'    => '#111111',
+				'muted_color'   => '#666666',
+				'surface_color' => '#fafafa',
+				'border_color'  => '#dddddd',
+				'font_family'   => 'system',
+				'font_size'     => '18',
+				'line_height'   => '1.7',
+				'border_radius' => '12',
+				'card_padding'  => '28',
+				'shadow'        => 'none',
+			],
+		];
+
+		try {
+			$this->admin_page()->save_widget_appearance_settings();
+			self::fail( 'Expected redirect.' );
+		} catch ( ProgressAgenticRagTestRedirect $redirect ) {
+			self::assertStringContainsString( 'tab=search-widget', $redirect->location );
+		}
+
+		self::assertSame( '#123456', get_option( SettingsRepository::OPTION_WIDGET_APPEARANCE )['accent_color'] );
+		self::assertSame( 18, get_option( SettingsRepository::OPTION_WIDGET_APPEARANCE )['font_size'] );
+		self::assertSame( 'system', get_option( SettingsRepository::OPTION_WIDGET_APPEARANCE )['font_family'] );
 	}
 
 	public function test_ajax_handlers_return_json_success_and_errors(): void {

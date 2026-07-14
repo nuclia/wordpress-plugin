@@ -40,6 +40,7 @@ final class AdminPage {
 		add_action( 'admin_post_progress_agentic_rag_save_connection', [ $this, 'save_connection_settings' ] );
 		add_action( 'admin_post_progress_agentic_rag_save_indexation', [ $this, 'save_indexation_settings' ] );
 		add_action( 'admin_post_progress_agentic_rag_save_taxonomy_labeling', [ $this, 'save_taxonomy_labeling_settings' ] );
+		add_action( 'admin_post_progress_agentic_rag_save_widget_appearance', [ $this, 'save_widget_appearance_settings' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_manual_sync_start', [ $this, 'start_manual_sync' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_manual_sync_status', [ $this, 'manual_sync_status' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_background_sync_status', [ $this, 'background_sync_status' ] );
@@ -240,6 +241,19 @@ final class AdminPage {
 		$this->settings->update_taxonomy_label_map( $raw_taxonomy_map );
 		$this->manual_sync->ensure_automatic_sync( true );
 		$this->redirect_to_tab( self::TAB_TAXONOMY_LABELING );
+	}
+
+	public function save_widget_appearance_settings(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to manage Progress Agentic RAG settings.', 'progress-agentic-rag' ) );
+		}
+
+		check_admin_referer( 'progress_agentic_rag_save_widget_appearance' );
+
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce checked above; SettingsRepository validates every appearance value.
+		$appearance = isset( $_POST[ SettingsRepository::OPTION_WIDGET_APPEARANCE ] ) && is_array( $_POST[ SettingsRepository::OPTION_WIDGET_APPEARANCE ] ) ? wp_unslash( $_POST[ SettingsRepository::OPTION_WIDGET_APPEARANCE ] ) : [];
+		$this->settings->update_widget_appearance( $appearance );
+		$this->redirect_to_tab( self::TAB_SEARCH_WIDGET );
 	}
 
 	public function start_manual_sync(): void {
@@ -543,12 +557,13 @@ final class AdminPage {
 	}
 
 	private function render_search_widget(): void {
-		$widget_status = $this->widget_status();
-		$api_connected = $this->settings->get_api_is_reachable();
-		$token_saved   = $this->settings->has_token();
-		$zone          = $this->settings->get_string( SettingsRepository::OPTION_ZONE );
-		$kbid          = $this->settings->get_string( SettingsRepository::OPTION_KBID );
-		$proxy_url     = '' !== $zone ? ProxyController::proxy_url( $zone ) : '';
+		$widget_status     = $this->widget_status();
+		$widget_appearance = $this->settings->get_widget_appearance();
+		$api_connected     = $this->settings->get_api_is_reachable();
+		$token_saved       = $this->settings->has_token();
+		$zone              = $this->settings->get_string( SettingsRepository::OPTION_ZONE );
+		$kbid              = $this->settings->get_string( SettingsRepository::OPTION_KBID );
+		$proxy_url         = '' !== $zone ? ProxyController::proxy_url( $zone ) : '';
 
 		require_once PROGRESS_AGENTIC_RAG_PATH . 'templates/admin/search-widget-status.php';
 	}

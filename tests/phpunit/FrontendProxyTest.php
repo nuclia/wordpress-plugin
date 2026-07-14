@@ -56,7 +56,11 @@ final class FrontendProxyTest extends TestCase {
 		$widget->enqueue_assets();
 
 		self::assertSame( 'progress-agentic-rag-frontend', $GLOBALS['progress_agentic_rag_test_enqueued_styles'][0]['handle'] );
+		self::assertSame( (string) filemtime( PROGRESS_AGENTIC_RAG_PATH . 'assets/css/frontend.css' ), $GLOBALS['progress_agentic_rag_test_enqueued_styles'][0]['ver'] );
 		self::assertSame( 'progress-agentic-rag-widget', $GLOBALS['progress_agentic_rag_test_enqueued_scripts'][0]['handle'] );
+		self::assertSame( 'progress-agentic-rag-frontend', $GLOBALS['progress_agentic_rag_test_enqueued_scripts'][1]['handle'] );
+		self::assertSame( [ 'progress-agentic-rag-widget' ], $GLOBALS['progress_agentic_rag_test_enqueued_scripts'][1]['deps'] );
+		self::assertSame( (string) filemtime( PROGRESS_AGENTIC_RAG_PATH . 'assets/js/frontend.js' ), $GLOBALS['progress_agentic_rag_test_enqueued_scripts'][1]['ver'] );
 
 		$first_render = $widget->shortcode( [ 'features' => 'answers,filter,bad<script>' ] );
 		$block_render = $widget->render_block( [ 'features' => [ 'suggestions' ] ] );
@@ -66,6 +70,9 @@ final class FrontendProxyTest extends TestCase {
 		self::assertStringContainsString( 'backend="https://example.test/index.php/nuclia-proxy/europe-1"', $first_render );
 		self::assertStringContainsString( 'features="answers,filter"', $first_render );
 		self::assertStringContainsString( 'features="suggestions"', $block_render );
+		self::assertStringContainsString( 'assets/css/widget-response.css?ver=0.1.0', $first_render );
+		self::assertStringContainsString( '--progress-agentic-rag-widget-accent-color:#054bff', $first_render );
+		self::assertStringContainsString( '--progress-agentic-rag-widget-card-padding:24px', $first_render );
 		self::assertStringNotContainsString( 'secret-token', $first_render );
 	}
 

@@ -159,6 +159,7 @@ function progress_agentic_rag_e2e_option_names(): array {
 		'nuclia_token',
 		'nuclia_account_id',
 		'nuclia_api_is_reachable',
+		'progress_agentic_rag_widget_appearance',
 	];
 }
 

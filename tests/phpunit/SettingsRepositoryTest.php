@@ -26,7 +26,44 @@ final class SettingsRepositoryTest extends TestCase {
 		self::assertArrayHasKey( SettingsRepository::OPTION_BACKGROUND_SYNC_STATE, $defaults );
 		self::assertArrayHasKey( SettingsRepository::OPTION_SYNC_HISTORY, $defaults );
 		self::assertArrayHasKey( SettingsRepository::OPTION_FAILED_SYNC_ITEMS, $defaults );
+		self::assertArrayHasKey( SettingsRepository::OPTION_WIDGET_APPEARANCE, $defaults );
 		self::assertSame( 'agentic_rag_for_wp', SettingsRepository::SYNC_TABLE_NAME );
+	}
+
+	public function test_widget_appearance_sanitizes_allow_lists_colors_and_ranges(): void {
+		$repository = new SettingsRepository();
+		$repository->update_widget_appearance(
+			[
+				'accent_color'  => '#ABCDEF',
+				'text_color'    => 'bad',
+				'muted_color'   => '#123',
+				'surface_color' => '#fefefe',
+				'border_color'  => '#010203',
+				'font_family'   => 'inter<script>',
+				'font_size'     => 99,
+				'line_height'   => 1,
+				'border_radius' => -3,
+				'card_padding'  => 32,
+				'shadow'        => 'subtle',
+			]
+		);
+
+		self::assertSame(
+			[
+				'accent_color'  => '#abcdef',
+				'text_color'    => '#000000',
+				'muted_color'   => '#123',
+				'surface_color' => '#fefefe',
+				'border_color'  => '#010203',
+				'font_family'   => 'roboto',
+				'font_size'     => 24,
+				'line_height'   => 1.2,
+				'border_radius' => 0,
+				'card_padding'  => 32,
+				'shadow'        => 'subtle',
+			],
+			$repository->get_widget_appearance()
+		);
 	}
 
 	public function test_connection_settings_normalize_copied_endpoint_and_bearer_token(): void {

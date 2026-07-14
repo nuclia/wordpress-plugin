@@ -34,11 +34,14 @@ final class SearchWidget {
 	}
 
 	private function enqueue_frontend_assets(): void {
+		$frontend_style_version = filemtime( PROGRESS_AGENTIC_RAG_PATH . 'assets/css/frontend.css' );
+		$frontend_script_version = filemtime( PROGRESS_AGENTIC_RAG_PATH . 'assets/js/frontend.js' );
+
 		wp_enqueue_style(
 			'progress-agentic-rag-frontend',
 			PROGRESS_AGENTIC_RAG_URL . 'assets/css/frontend.css',
 			[],
-			PROGRESS_AGENTIC_RAG_VERSION
+			false !== $frontend_style_version ? (string) $frontend_style_version : PROGRESS_AGENTIC_RAG_VERSION
 		);
 
 		wp_enqueue_script(
@@ -46,6 +49,14 @@ final class SearchWidget {
 			'https://cdn.rag.progress.cloud/nuclia-widget.umd.js',
 			[],
 			null,
+			true
+		);
+
+		wp_enqueue_script(
+			'progress-agentic-rag-frontend',
+			PROGRESS_AGENTIC_RAG_URL . 'assets/js/frontend.js',
+			[ 'progress-agentic-rag-widget' ],
+			false !== $frontend_script_version ? (string) $frontend_script_version : PROGRESS_AGENTIC_RAG_VERSION,
 			true
 		);
 	}
@@ -69,6 +80,8 @@ final class SearchWidget {
 		$kbid           = $this->settings->get_string( SettingsRepository::OPTION_KBID );
 		$proxy_url      = ProxyController::proxy_url( $zone );
 		$widget_options = $this->widget_options( $attributes );
+		$response_css_url = add_query_arg( [ 'ver' => PROGRESS_AGENTIC_RAG_VERSION ], PROGRESS_AGENTIC_RAG_URL . 'assets/css/widget-response.css' );
+		$response_style   = $this->response_style( $this->settings->get_widget_appearance() );
 
 		if ( '' === $proxy_url ) {
 			return '';
@@ -198,6 +211,39 @@ final class SearchWidget {
 		return [
 			'features' => implode( ',', $this->sanitize_features( $attributes['features'] ?? self::DEFAULT_FEATURES ) ),
 		];
+	}
+
+	/**
+	 * @param array<string, string|int|float> $appearance Saved widget appearance.
+	 */
+	private function response_style( array $appearance ): string {
+		$font_families = [
+			'roboto' => 'Roboto, Arial, sans-serif',
+			'inter'  => 'Inter, Arial, sans-serif',
+			'system' => '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+		];
+		$shadows = [
+			'none'   => 'none',
+			'subtle' => '0 1px 2px rgb(16 24 40 / 5%)',
+			'soft'   => '0 12px 32px rgb(16 24 40 / 8%)',
+		];
+
+		return implode(
+			';',
+			[
+				'--progress-agentic-rag-widget-accent-color:' . $appearance['accent_color'],
+				'--progress-agentic-rag-widget-text-color:' . $appearance['text_color'],
+				'--progress-agentic-rag-widget-muted-color:' . $appearance['muted_color'],
+				'--progress-agentic-rag-widget-surface-color:' . $appearance['surface_color'],
+				'--progress-agentic-rag-widget-border-color:' . $appearance['border_color'],
+				'--progress-agentic-rag-widget-font-family:' . $font_families[ (string) $appearance['font_family'] ],
+				'--progress-agentic-rag-widget-font-size:' . $appearance['font_size'] . 'px',
+				'--progress-agentic-rag-widget-line-height:' . $appearance['line_height'],
+				'--progress-agentic-rag-widget-border-radius:' . $appearance['border_radius'] . 'px',
+				'--progress-agentic-rag-widget-card-padding:' . $appearance['card_padding'] . 'px',
+				'--progress-agentic-rag-widget-shadow:' . $shadows[ (string) $appearance['shadow'] ],
+			]
+		) . ';';
 	}
 
 	/**

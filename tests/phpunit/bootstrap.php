@@ -266,6 +266,12 @@ if ( ! function_exists( 'sanitize_key' ) ) {
 	}
 }
 
+if ( ! function_exists( 'sanitize_hex_color' ) ) {
+	function sanitize_hex_color( string $color ): ?string {
+		return 1 === preg_match( '/^#(?:[a-fA-F0-9]{3}){1,2}$/', $color ) ? $color : null;
+	}
+}
+
 if ( ! function_exists( 'sanitize_title' ) ) {
 	function sanitize_title( string $title ): string {
 		return trim( strtolower( preg_replace( '/[^a-zA-Z0-9-]+/', '-', $title ) ?? '' ), '-' );
