@@ -71,19 +71,21 @@ final class AdminPage {
 		if ( $hook_suffix !== $this->page_hook ) {
 			return;
 		}
+		$style_version  = filemtime( PROGRESS_AGENTIC_RAG_PATH . 'assets/css/admin.css' );
+		$script_version = filemtime( PROGRESS_AGENTIC_RAG_PATH . 'assets/js/admin.js' );
 
 		wp_enqueue_style(
 			'progress-agentic-rag-admin',
 			PROGRESS_AGENTIC_RAG_URL . 'assets/css/admin.css',
 			[],
-			PROGRESS_AGENTIC_RAG_VERSION
+			false !== $style_version ? (string) $style_version : PROGRESS_AGENTIC_RAG_VERSION
 		);
 
 		wp_enqueue_script(
 			'progress-agentic-rag-admin',
 			PROGRESS_AGENTIC_RAG_URL . 'assets/js/admin.js',
 			[],
-			PROGRESS_AGENTIC_RAG_VERSION,
+			false !== $script_version ? (string) $script_version : PROGRESS_AGENTIC_RAG_VERSION,
 			true
 		);
 

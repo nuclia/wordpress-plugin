@@ -94,6 +94,8 @@ final class AdminPageTest extends TestCase {
 
 		self::assertSame( 'progress-agentic-rag-admin', $GLOBALS['progress_agentic_rag_test_enqueued_styles'][0]['handle'] );
 		self::assertSame( 'progress-agentic-rag-admin', $GLOBALS['progress_agentic_rag_test_enqueued_scripts'][0]['handle'] );
+		self::assertSame( (string) filemtime( PROGRESS_AGENTIC_RAG_PATH . 'assets/css/admin.css' ), $GLOBALS['progress_agentic_rag_test_enqueued_styles'][0]['ver'] );
+		self::assertSame( (string) filemtime( PROGRESS_AGENTIC_RAG_PATH . 'assets/js/admin.js' ), $GLOBALS['progress_agentic_rag_test_enqueued_scripts'][0]['ver'] );
 		self::assertSame( 'progressAgenticRagAdmin', $GLOBALS['progress_agentic_rag_test_localized_scripts'][0]['object_name'] );
 		self::assertArrayHasKey( 'initialSyncStatus', $GLOBALS['progress_agentic_rag_test_localized_scripts'][0]['l10n'] );
 		self::assertArrayHasKey( 'mapping', $GLOBALS['progress_agentic_rag_test_localized_scripts'][0]['l10n'] );
@@ -166,6 +168,9 @@ final class AdminPageTest extends TestCase {
 			if ( 'search-widget' === $tab ) {
 				self::assertStringContainsString( 'Open Progress Agentic RAG dashboard', $tab_output );
 				self::assertStringContainsString( 'Response appearance', $tab_output );
+				self::assertStringContainsString( 'Live preview', $tab_output );
+				self::assertStringContainsString( 'data-progress-agentic-rag-widget-preview', $tab_output );
+				self::assertStringContainsString( 'Example search result', $tab_output );
 				self::assertStringContainsString( 'progress_agentic_rag_widget_appearance[accent_color]', $tab_output );
 				self::assertStringContainsString( 'Gutenberg block', $tab_output );
 				self::assertStringContainsString( 'Elementor widget', $tab_output );

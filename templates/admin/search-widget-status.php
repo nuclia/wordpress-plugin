@@ -52,10 +52,11 @@ $appearance_name  = \ProgressAgenticRag\Settings\SettingsRepository::OPTION_WIDG
 			<h3 id="progress-agentic-rag-widget-appearance-title"><?php esc_html_e( 'Response appearance', 'progress-agentic-rag' ); ?></h3>
 		</div>
 		<p><?php esc_html_e( 'Customize the answer and search result cards. Defaults follow the Progress Sistema design tokens.', 'progress-agentic-rag' ); ?></p>
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" data-progress-agentic-rag-widget-appearance-form>
 			<input type="hidden" name="action" value="progress_agentic_rag_save_widget_appearance">
 			<?php wp_nonce_field( 'progress_agentic_rag_save_widget_appearance' ); ?>
-			<div class="progress-agentic-rag__field-grid">
+			<div class="progress-agentic-rag__widget-appearance-layout">
+				<div class="progress-agentic-rag__field-grid">
 				<label class="progress-agentic-rag__field" for="progress-agentic-rag-widget-accent-color">
 					<span><?php esc_html_e( 'Accent color', 'progress-agentic-rag' ); ?></span>
 					<input id="progress-agentic-rag-widget-accent-color" type="color" name="<?php echo esc_attr( $appearance_name ); ?>[accent_color]" value="<?php echo esc_attr( (string) $widget_appearance['accent_color'] ); ?>">
@@ -112,6 +113,24 @@ $appearance_name  = \ProgressAgenticRag\Settings\SettingsRepository::OPTION_WIDG
 						<option value="soft" <?php selected( 'soft', $widget_appearance['shadow'] ); ?>><?php esc_html_e( 'Soft', 'progress-agentic-rag' ); ?></option>
 					</select>
 				</label>
+				</div>
+				<aside class="progress-agentic-rag__widget-preview" data-progress-agentic-rag-widget-preview aria-labelledby="progress-agentic-rag-widget-preview-title">
+					<div class="progress-agentic-rag__section-label"><?php esc_html_e( 'Live preview', 'progress-agentic-rag' ); ?></div>
+					<div class="progress-agentic-rag__widget-preview-card" data-progress-agentic-rag-widget-preview-card>
+						<h4 id="progress-agentic-rag-widget-preview-title" data-progress-agentic-rag-widget-preview-accent><?php esc_html_e( 'Answer', 'progress-agentic-rag' ); ?></h4>
+						<p><?php esc_html_e( 'Here is an example answer using your selected response appearance.', 'progress-agentic-rag' ); ?></p>
+						<ol>
+							<li><?php esc_html_e( 'Review the relevant information.', 'progress-agentic-rag' ); ?></li>
+							<li><?php esc_html_e( 'Open a source for more detail.', 'progress-agentic-rag' ); ?></li>
+						</ol>
+						<div class="progress-agentic-rag__widget-preview-meta" data-progress-agentic-rag-widget-preview-muted><?php esc_html_e( '3 sources', 'progress-agentic-rag' ); ?></div>
+					</div>
+					<div class="progress-agentic-rag__widget-preview-card" data-progress-agentic-rag-widget-preview-card>
+						<h4 data-progress-agentic-rag-widget-preview-accent><?php esc_html_e( 'Example search result', 'progress-agentic-rag' ); ?></h4>
+						<p><?php esc_html_e( 'A matching document excerpt appears here.', 'progress-agentic-rag' ); ?></p>
+						<div class="progress-agentic-rag__widget-preview-meta" data-progress-agentic-rag-widget-preview-muted><?php esc_html_e( 'Product documentation', 'progress-agentic-rag' ); ?></div>
+					</div>
+				</aside>
 			</div>
 			<div class="progress-agentic-rag__actions">
 				<button type="submit" class="progress-agentic-rag__button progress-agentic-rag__button--primary"><?php esc_html_e( 'Save response appearance', 'progress-agentic-rag' ); ?></button>

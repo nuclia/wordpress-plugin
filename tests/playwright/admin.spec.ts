@@ -111,3 +111,38 @@ test('response appearance settings persist validated admin choices', async ({ pa
   expect(responseStyle).toContain('--progress-agentic-rag-widget-font-size:18px');
   expect(responseStyle).toContain('--progress-agentic-rag-widget-shadow:0 1px 2px');
 });
+
+test('response appearance controls update the live preview before saving', async ({ page, request }) => {
+  await resetFixture(request);
+  await configureWidget(request);
+  await loginAsAdmin(page);
+  await page.goto('/wp-admin/admin.php?page=progress-agentic-rag&tab=search-widget');
+
+  const preview = page.locator('[data-progress-agentic-rag-widget-preview]');
+  const previewCard = page.locator('[data-progress-agentic-rag-widget-preview-card]').first();
+  await expect(preview.getByText('Live preview')).toBeVisible();
+
+  await page.getByLabel('Accent color').fill('#123456');
+  await page.getByLabel('Text color', { exact: true }).fill('#111111');
+  await page.getByLabel('Muted text color').fill('#666666');
+  await page.getByLabel('Card background').fill('#fafafa');
+  await page.getByLabel('Border color').fill('#dddddd');
+  await page.getByLabel('Font family').selectOption('inter');
+  await page.getByLabel('Base font size').fill('18');
+  await page.getByLabel('Line height').fill('1.7');
+  await page.getByLabel('Card corner radius').fill('12');
+  await page.getByLabel('Card padding').fill('28');
+  await page.getByLabel('Card shadow').selectOption('subtle');
+
+  await expect(preview.locator('[data-progress-agentic-rag-widget-preview-accent]').first()).toHaveCSS('color', 'rgb(18, 52, 86)');
+  await expect(preview.locator('[data-progress-agentic-rag-widget-preview-muted]').first()).toHaveCSS('color', 'rgb(102, 102, 102)');
+  await expect(previewCard).toHaveCSS('color', 'rgb(17, 17, 17)');
+  await expect(previewCard).toHaveCSS('background-color', 'rgb(250, 250, 250)');
+  await expect(previewCard).toHaveCSS('border-color', 'rgb(221, 221, 221)');
+  await expect(previewCard).toHaveCSS('font-family', 'Inter, Arial, sans-serif');
+  await expect(previewCard).toHaveCSS('font-size', '18px');
+  await expect(previewCard).toHaveCSS('line-height', '30.6px');
+  await expect(previewCard).toHaveCSS('border-radius', '12px');
+  await expect(previewCard).toHaveCSS('padding', '28px');
+  await expect(previewCard).toHaveCSS('box-shadow', 'rgba(16, 24, 40, 0.05) 0px 1px 2px 0px');
+});

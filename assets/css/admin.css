@@ -366,6 +366,68 @@ body.toplevel_page_progress-agentic-rag #wpcontent {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.progress-agentic-rag__widget-appearance-layout {
+	display: grid;
+	gap: var(--progress-agentic-rag-space-3);
+	grid-template-columns: minmax(0, 1.2fr) minmax(20rem, 0.8fr);
+}
+
+.progress-agentic-rag__widget-preview {
+	--progress-agentic-rag-widget-accent-color: #054bff;
+	--progress-agentic-rag-widget-text-color: #000;
+	--progress-agentic-rag-widget-muted-color: #6d7175;
+	--progress-agentic-rag-widget-surface-color: #fff;
+	--progress-agentic-rag-widget-border-color: #dfe1e5;
+	--progress-agentic-rag-widget-font-family: Roboto, Arial, sans-serif;
+	--progress-agentic-rag-widget-font-size: 16px;
+	--progress-agentic-rag-widget-line-height: 1.5;
+	--progress-agentic-rag-widget-border-radius: 8px;
+	--progress-agentic-rag-widget-card-padding: 24px;
+	--progress-agentic-rag-widget-shadow: 0 12px 32px rgb(16 24 40 / 8%);
+	background: var(--progress-agentic-rag-surface-muted);
+	border: 1px solid var(--progress-agentic-rag-surface-border);
+	border-radius: var(--progress-agentic-rag-card-border-radius);
+	display: grid;
+	gap: var(--progress-agentic-rag-space-2);
+	padding: var(--progress-agentic-rag-space-2);
+}
+
+.progress-agentic-rag__widget-preview-card {
+	background: var(--progress-agentic-rag-widget-surface-color);
+	border: 1px solid var(--progress-agentic-rag-widget-border-color);
+	border-radius: var(--progress-agentic-rag-widget-border-radius);
+	box-shadow: var(--progress-agentic-rag-widget-shadow);
+	color: var(--progress-agentic-rag-widget-text-color);
+	font-family: var(--progress-agentic-rag-widget-font-family);
+	font-size: var(--progress-agentic-rag-widget-font-size);
+	line-height: var(--progress-agentic-rag-widget-line-height);
+	min-width: 0;
+	padding: var(--progress-agentic-rag-widget-card-padding);
+}
+
+.progress-agentic-rag__widget-preview-card h4 {
+	color: var(--progress-agentic-rag-widget-accent-color);
+	font: inherit;
+	font-weight: var(--progress-agentic-rag-font-weight-semi-bold);
+	margin: 0 0 var(--progress-agentic-rag-space-1);
+}
+
+.progress-agentic-rag__widget-preview-card p,
+.progress-agentic-rag__widget-preview-card ol {
+	margin: 0 0 var(--progress-agentic-rag-space-2);
+}
+
+.progress-agentic-rag__widget-preview-card ol {
+	padding-left: var(--progress-agentic-rag-space-3);
+}
+
+.progress-agentic-rag__widget-preview-meta {
+	border-top: 1px solid var(--progress-agentic-rag-widget-border-color);
+	color: var(--progress-agentic-rag-widget-muted-color);
+	font-size: 0.875em;
+	padding-top: var(--progress-agentic-rag-space-1);
+}
+
 .progress-agentic-rag__field,
 .progress-agentic-rag__mapping-select {
 	display: grid;
@@ -1033,6 +1095,7 @@ body.toplevel_page_progress-agentic-rag #wpcontent {
 
 	.progress-agentic-rag__status-grid,
 	.progress-agentic-rag__field-grid,
+	.progress-agentic-rag__widget-appearance-layout,
 	.progress-agentic-rag__mapping,
 	.progress-agentic-rag__mapping-control,
 	.progress-agentic-rag__admin-grid,

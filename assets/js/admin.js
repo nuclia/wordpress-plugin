@@ -19,10 +19,47 @@
 	const mappingContainer = document.querySelector( '[data-progress-agentic-rag-mapping-container]' );
 	const addMappingButton = document.querySelector( '[data-progress-agentic-rag-add-mapping]' );
 	const modal = document.querySelector( '[data-progress-agentic-rag-sync-modal]' );
+	const appearanceForm = document.querySelector( '[data-progress-agentic-rag-widget-appearance-form]' );
+	const appearancePreview = document.querySelector( '[data-progress-agentic-rag-widget-preview]' );
 	const defaultStartButtonText = config.strings && config.strings.sync ? config.strings.sync : startButton ? startButton.textContent : '';
 	const defaultDeleteButtonText = deleteSyncedButton ? deleteSyncedButton.textContent : '';
 	const startButtonInitiallyDisabled = startButton ? startButton.disabled : false;
 	const deleteButtonInitiallyDisabled = deleteSyncedButton ? deleteSyncedButton.disabled : false;
+
+	if ( appearanceForm && appearancePreview ) {
+		const fontFamilies = {
+			roboto: 'Roboto, Arial, sans-serif',
+			inter: 'Inter, Arial, sans-serif',
+			system: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+		};
+		const shadows = {
+			none: 'none',
+			subtle: '0 1px 2px rgb(16 24 40 / 5%)',
+			soft: '0 12px 32px rgb(16 24 40 / 8%)',
+		};
+		const appearanceValue = ( name ) => {
+			const input = appearanceForm.querySelector( '[name$="[' + name + ']"]' );
+
+			return input ? input.value : '';
+		};
+		const updateAppearancePreview = () => {
+			appearancePreview.style.setProperty( '--progress-agentic-rag-widget-accent-color', appearanceValue( 'accent_color' ) );
+			appearancePreview.style.setProperty( '--progress-agentic-rag-widget-text-color', appearanceValue( 'text_color' ) );
+			appearancePreview.style.setProperty( '--progress-agentic-rag-widget-muted-color', appearanceValue( 'muted_color' ) );
+			appearancePreview.style.setProperty( '--progress-agentic-rag-widget-surface-color', appearanceValue( 'surface_color' ) );
+			appearancePreview.style.setProperty( '--progress-agentic-rag-widget-border-color', appearanceValue( 'border_color' ) );
+			appearancePreview.style.setProperty( '--progress-agentic-rag-widget-font-family', fontFamilies[ appearanceValue( 'font_family' ) ] || fontFamilies.roboto );
+			appearancePreview.style.setProperty( '--progress-agentic-rag-widget-font-size', appearanceValue( 'font_size' ) + 'px' );
+			appearancePreview.style.setProperty( '--progress-agentic-rag-widget-line-height', appearanceValue( 'line_height' ) );
+			appearancePreview.style.setProperty( '--progress-agentic-rag-widget-border-radius', appearanceValue( 'border_radius' ) + 'px' );
+			appearancePreview.style.setProperty( '--progress-agentic-rag-widget-card-padding', appearanceValue( 'card_padding' ) + 'px' );
+			appearancePreview.style.setProperty( '--progress-agentic-rag-widget-shadow', shadows[ appearanceValue( 'shadow' ) ] || shadows.soft );
+		};
+
+		appearanceForm.addEventListener( 'input', updateAppearancePreview );
+		appearanceForm.addEventListener( 'change', updateAppearancePreview );
+		updateAppearancePreview();
+	}
 
 	if ( ! config.ajaxUrl || ! config.nonce ) {
 		return;
