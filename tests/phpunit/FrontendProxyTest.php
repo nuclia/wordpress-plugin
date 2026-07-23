@@ -70,7 +70,7 @@ final class FrontendProxyTest extends TestCase {
 		self::assertStringContainsString( 'backend="https://example.test/index.php/nuclia-proxy/europe-1"', $first_render );
 		self::assertStringContainsString( 'features="answers,filter"', $first_render );
 		self::assertStringContainsString( 'features="suggestions"', $block_render );
-		self::assertStringContainsString( 'assets/css/widget-response.css?ver=0.1.0', $first_render );
+		self::assertStringContainsString( 'assets/css/widget-response.css?ver=1.0.0', $first_render );
 		self::assertStringContainsString( '--progress-agentic-rag-widget-accent-color:#054bff', $first_render );
 		self::assertStringContainsString( '--progress-agentic-rag-widget-card-padding:24px', $first_render );
 		self::assertStringNotContainsString( 'secret-token', $first_render );

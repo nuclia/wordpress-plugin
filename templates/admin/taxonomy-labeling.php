@@ -21,8 +21,8 @@ defined( 'ABSPATH' ) || exit;
 			<div class="progress-agentic-rag__mapping-warnings" role="status">
 				<strong><?php esc_html_e( 'Mapping checks', 'progress-agentic-rag' ); ?></strong>
 				<ul>
-					<?php foreach ( $taxonomy_mapping_warnings as $warning ) : ?>
-						<li><?php echo esc_html( $warning ); ?></li>
+					<?php foreach ( $taxonomy_mapping_warnings as $progress_agentic_rag_warning ) : ?>
+						<li><?php echo esc_html( $progress_agentic_rag_warning ); ?></li>
 					<?php endforeach; ?>
 				</ul>
 			</div>

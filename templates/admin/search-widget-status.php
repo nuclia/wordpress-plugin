@@ -43,6 +43,7 @@ $appearance_name  = \ProgressAgenticRag\Settings\SettingsRepository::OPTION_WIDG
 		</div>
 		<p><?php esc_html_e( 'The shortcode, Gutenberg block, and Elementor widget all support the same display option:', 'progress-agentic-rag' ); ?></p>
 		<ul class="progress-agentic-rag__check-list">
+			<?php /* translators: %s: comma-separated list of supported widget features. */ ?>
 			<li><?php printf( esc_html__( 'Features: choose any of %s.', 'progress-agentic-rag' ), '<code>' . esc_html( $feature_options ) . '</code>' ); ?></li>
 			<li><?php esc_html_e( 'Zone, Knowledge Box, backend, and proxy are injected from the saved connection so credentials stay server-side.', 'progress-agentic-rag' ); ?></li>
 		</ul>

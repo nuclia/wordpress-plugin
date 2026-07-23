@@ -416,7 +416,7 @@ final class AdminPage {
 
 		check_ajax_referer( 'progress_agentic_rag_manual_sync' );
 
-		$post_id = isset( $_POST['post_id'] ) ? (int) wp_unslash( $_POST['post_id'] ) : 0;
+		$post_id = isset( $_POST['post_id'] ) ? absint( wp_unslash( $_POST['post_id'] ) ) : 0;
 		$rid     = $this->synced_resource_id_for_post( $post_id );
 		if ( $post_id <= 0 || '' === $rid ) {
 			wp_send_json_error( [ 'message' => __( 'Synced resource mapping was not found.', 'progress-agentic-rag' ) ], 404 );
@@ -446,6 +446,7 @@ final class AdminPage {
 	}
 
 	private function active_tab(): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Tab is read-only admin navigation state.
 		if ( ! isset( $_GET['tab'] ) ) {
 			if ( ! $this->settings->get_api_is_reachable() || '' === $this->settings->get_string( SettingsRepository::OPTION_ZONE ) || '' === $this->settings->get_string( SettingsRepository::OPTION_KBID ) || ! $this->settings->has_token() ) {
 				return self::TAB_CONNECTION;

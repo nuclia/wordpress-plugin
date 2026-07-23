@@ -29,9 +29,13 @@ defined( 'ABSPATH' ) || exit;
 		</div>
 		<p><?php echo esc_html( (string) $scheduler_status['message'] ); ?></p>
 		<ul class="progress-agentic-rag__check-list">
+			<?php /* translators: %s: automatic sync status message. */ ?>
 			<li><?php printf( esc_html__( 'Automatic sync: %s', 'progress-agentic-rag' ), esc_html( (string) ( $background_status['message'] ?? '' ) ) ); ?></li>
+			<?php /* translators: %s: manual sync status message. */ ?>
 			<li><?php printf( esc_html__( 'Manual sync: %s', 'progress-agentic-rag' ), esc_html( (string) ( $manual_status['message'] ?? __( 'No manual sync running.', 'progress-agentic-rag' ) ) ) ); ?></li>
+			<?php /* translators: %s: delete status message. */ ?>
 			<li><?php printf( esc_html__( 'Delete state: %s', 'progress-agentic-rag' ), esc_html( (string) ( $delete_status['message'] ?? __( 'No delete running.', 'progress-agentic-rag' ) ) ) ); ?></li>
+			<?php /* translators: 1: pending label count, 2: running label count, 3: failed label count. */ ?>
 			<li><?php printf( esc_html__( 'Label queue: %1$d pending, %2$d running, %3$d failed.', 'progress-agentic-rag' ), (int) $label_reprocess_status['pending'], (int) $label_reprocess_status['running'], (int) $label_reprocess_status['failed'] ); ?></li>
 		</ul>
 	</div>

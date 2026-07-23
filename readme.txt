@@ -3,7 +3,7 @@ Contributors: progresssoftware
 Tags: search, ai, knowledge-base, rag, indexing
 Requires at least: 6.8
 Tested up to: 7.0
-Stable tag: 0.1.0
+Stable tag: 1.0.0
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -43,6 +43,6 @@ No. The production implementation must keep service credentials server-side and 
 
 == Changelog ==
 
-= 0.1.0 =
+= 1.0.0 =
 
 * Initial rebuild skeleton.

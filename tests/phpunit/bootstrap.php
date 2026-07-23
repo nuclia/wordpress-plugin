@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'PROGRESS_AGENTIC_RAG_VERSION' ) ) {
-	define( 'PROGRESS_AGENTIC_RAG_VERSION', '0.1.0' );
+	define( 'PROGRESS_AGENTIC_RAG_VERSION', '1.0.0' );
 	define( 'PROGRESS_AGENTIC_RAG_MIN_PHP_VERSION', '8.1' );
 	define( 'PROGRESS_AGENTIC_RAG_MIN_WP_VERSION', '6.8' );
 	define( 'PROGRESS_AGENTIC_RAG_FILE', dirname( __DIR__, 2 ) . '/progress-agentic-rag.php' );
@@ -197,6 +197,12 @@ if ( ! function_exists( 'wp_parse_url' ) ) {
 if ( ! function_exists( 'wp_unslash' ) ) {
 	function wp_unslash( mixed $value ): mixed {
 		return is_array( $value ) ? array_map( 'wp_unslash', $value ) : stripslashes( (string) $value );
+	}
+}
+
+if ( ! function_exists( 'absint' ) ) {
+	function absint( mixed $maybeint ): int {
+		return abs( (int) $maybeint );
 	}
 }
 
