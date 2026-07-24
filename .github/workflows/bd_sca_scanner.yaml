@@ -6,6 +6,7 @@ on:
     paths:
       - yarn.lock
       - package.json
+  workflow_dispatch:
 
   pull_request:
     branches:
@@ -36,7 +37,7 @@ jobs:
           DETECT_PROJECT_GROUP_NAME: Nuclia
           DETECT_PROJECT_VERSION_NAME: main
         with:
-          bridgecli_download_version: "3.7.1" # Issue with Bridge_CLI 3.8.0
+          bridgecli_download_version: '3.7.1' # Issue with Bridge_CLI 3.8.0
           blackducksca_url: 'https://progresssoftware.app.blackduck.com'
           blackducksca_token: ${{ secrets.BD_SCA_TOKEN }}
           blackducksca_scan_full: ${{ github.event_name == 'pull_request' && 'false' || 'true' }}
