@@ -13,8 +13,8 @@
  * Requires PHP:      8.1
  * Author:            Progress Software
  * Author URI:        https://www.progress.com/
- * License:           GPL v2 or later
- * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * License:           GPL v3 or later
+ * License URI:       https://www.gnu.org/licenses/gpl-3.0.html
  * Text Domain:       progress-agentic-rag
  * Domain Path:       /languages
  */
