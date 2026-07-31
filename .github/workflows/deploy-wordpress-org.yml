@@ -127,7 +127,9 @@ jobs:
             --exclude 'package.json' \
             --exclude 'package-lock.json' \
             --exclude 'phpunit.xml.dist' \
-            --exclude 'playwright.config.ts'
+            --exclude 'playwright.config.ts' \
+            --exclude 'README.md' \
+            --exclude '.DS_Store'
 
       - name: Release artifact check
         run: RELEASE_VERSION="${RELEASE_VERSION}" RELEASE_DIR=build/progress-agentic-rag docker compose -f docker/docker-compose.yml run --rm release-check

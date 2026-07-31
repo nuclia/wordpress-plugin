@@ -6,7 +6,7 @@
  *
  * @wordpress-plugin
  * Plugin Name:       Progress Agentic RAG
- * Plugin URI:        https://www.progress.com/
+ * Plugin URI:        https://github.com/nuclia/wordpress-plugin
  * Description:       Index WordPress content into Progress Agentic RAG and power knowledge-base search.
  * Version:           1.0.0
  * Requires at least: 6.8

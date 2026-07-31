@@ -14,7 +14,7 @@ Index WordPress content into Progress Agentic RAG and power knowledge-base searc
 
 Progress Agentic RAG connects WordPress content to the Progress Agentic RAG service so site owners can build searchable knowledge bases from selected public content.
 
-This rebuild is being developed with WordPress.org compatibility, server-side credential handling, background indexing, and automated test coverage as release requirements.
+The plugin keeps service credentials server-side, indexes selected content in the background, and provides WordPress-native administration and search integration.
 
 When the service connection is configured and validated, the plugin embeds the Progress Agentic RAG search widget on the WordPress front page. Widget requests are proxied through WordPress so the Service Access token stays on the server.
 
@@ -39,10 +39,10 @@ Service details:
 
 = Does the plugin expose the service token to visitors? =
 
-No. The production implementation must keep service credentials server-side and use server-side proxy requests where public access is needed.
+No. Service credentials stay server-side, and public widget requests use the server-side proxy.
 
 == Changelog ==
 
 = 1.0.0 =
 
-* Initial rebuild skeleton.
+* Initial release.

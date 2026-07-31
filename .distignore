@@ -6,6 +6,8 @@
 /package-lock.json
 /phpunit.xml.dist
 /playwright.config.ts
+/README.md
+/.DS_Store
 /.phpunit.result.cache
 /test-results
 /playwright-report

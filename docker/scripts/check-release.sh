@@ -11,7 +11,7 @@ fi
 
 sh "$script_dir/check-release-metadata.sh"
 
-for path in .git .github .distignore .gitignore docker tests node_modules vendor package.json package-lock.json phpunit.xml.dist playwright.config.ts; do
+for path in .git .github .distignore .gitignore .DS_Store docker tests node_modules vendor package.json package-lock.json phpunit.xml.dist playwright.config.ts README.md; do
 	if [ -e "$release_dir/$path" ]; then
 		echo "Release artifact includes dev-only path: $path"
 		exit 1
