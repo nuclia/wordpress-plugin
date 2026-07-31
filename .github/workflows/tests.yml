@@ -1,0 +1,109 @@
+name: Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint and Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Docker versions
+        run: |
+          docker --version
+          docker compose version
+
+      - name: PHP lint
+        run: docker compose -f docker/docker-compose.yml run --rm php-lint
+
+      - name: PHPUnit
+        run: docker compose -f docker/docker-compose.yml run --rm phpunit
+
+      - name: Prepare WordPress for Playwright
+        run: |
+          set -eux
+          docker network create progress-agentic-rag-ci
+          docker volume create progress-agentic-rag-ci-wp
+          docker run -d \
+            --name progress-agentic-rag-ci-db \
+            --network progress-agentic-rag-ci \
+            -e MYSQL_ROOT_PASSWORD=root \
+            -e MYSQL_DATABASE=wordpress \
+            -e MYSQL_USER=wordpress \
+            -e MYSQL_PASSWORD=wordpress \
+            mysql:8.0
+          until docker exec progress-agentic-rag-ci-db mysqladmin ping -h 127.0.0.1 -uroot -proot --silent; do sleep 2; done
+          docker run -d \
+            --name progress-agentic-rag-ci-wordpress \
+            --network progress-agentic-rag-ci \
+            -p 8080:80 \
+            -e WORDPRESS_DB_HOST=progress-agentic-rag-ci-db \
+            -e WORDPRESS_DB_USER=wordpress \
+            -e WORDPRESS_DB_PASSWORD=wordpress \
+            -e WORDPRESS_DB_NAME=wordpress \
+            -v progress-agentic-rag-ci-wp:/var/www/html \
+            -v "$PWD":/var/www/html/wp-content/plugins/progress-agentic-rag:ro \
+            wordpress:latest
+          until curl -fsS http://localhost:8080/wp-admin/install.php >/dev/null; do sleep 2; done
+          docker run --rm \
+            --network progress-agentic-rag-ci \
+            --user 0 \
+            -e WORDPRESS_DB_HOST=progress-agentic-rag-ci-db \
+            -e WORDPRESS_DB_USER=wordpress \
+            -e WORDPRESS_DB_PASSWORD=wordpress \
+            -e WORDPRESS_DB_NAME=wordpress \
+            -v progress-agentic-rag-ci-wp:/var/www/html \
+            -v "$PWD":/var/www/html/wp-content/plugins/progress-agentic-rag:ro \
+            wordpress:cli \
+            sh -c 'set -e
+            wp core install --allow-root --path=/var/www/html --url=http://progress-agentic-rag-ci-wordpress --title="Progress Agentic RAG CI" --admin_user=admin --admin_password=admin123 --admin_email=admin@example.com --skip-email
+            mkdir -p /var/www/html/wp-content/mu-plugins
+            cp /var/www/html/wp-content/plugins/progress-agentic-rag/tests/playwright/fixtures/mu-plugins/progress-agentic-rag-e2e.php /var/www/html/wp-content/mu-plugins/progress-agentic-rag-e2e.php
+            wp plugin activate progress-agentic-rag/progress-agentic-rag.php --allow-root --path=/var/www/html --url=http://progress-agentic-rag-ci-wordpress
+            wp option update progress_agentic_rag_e2e_key progress-agentic-rag-e2e --allow-root --path=/var/www/html --url=http://progress-agentic-rag-ci-wordpress
+            wp option update nuclia_zone europe-1 --allow-root --path=/var/www/html --url=http://progress-agentic-rag-ci-wordpress
+            wp option update nuclia_kbid ci-kb --allow-root --path=/var/www/html --url=http://progress-agentic-rag-ci-wordpress
+            wp option update nuclia_token progress-agentic-rag-secret --allow-root --path=/var/www/html --url=http://progress-agentic-rag-ci-wordpress
+            wp option update nuclia_api_is_reachable yes --allow-root --path=/var/www/html --url=http://progress-agentic-rag-ci-wordpress'
+
+      - name: Playwright
+        run: |
+          docker run --rm \
+            --network progress-agentic-rag-ci \
+            -e WP_BASE_URL=http://progress-agentic-rag-ci-wordpress \
+            -e PROGRESS_AGENTIC_RAG_E2E_KEY=progress-agentic-rag-e2e \
+            -e PROGRESS_AGENTIC_RAG_TEST_TOKEN=progress-agentic-rag-secret \
+            -v "$PWD":/plugin \
+            -w /plugin \
+            mcr.microsoft.com/playwright:v1.61.0-noble \
+            sh -c 'npm ci && sh docker/scripts/run-playwright.sh'
+
+      - name: Prepare release check fixture
+        run: |
+          rm -rf build/progress-agentic-rag
+          mkdir -p build/progress-agentic-rag
+          rsync -a ./ build/progress-agentic-rag/ \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.distignore' \
+            --exclude '.gitignore' \
+            --exclude 'build' \
+            --exclude 'docker' \
+            --exclude 'tests' \
+            --exclude 'node_modules' \
+            --exclude 'vendor' \
+            --exclude 'package.json' \
+            --exclude 'package-lock.json' \
+            --exclude 'phpunit.xml.dist' \
+            --exclude 'playwright.config.ts'
+
+      - name: Release artifact check
+        run: RELEASE_DIR=build/progress-agentic-rag docker compose -f docker/docker-compose.yml run --rm release-check

@@ -1,2 +1,171 @@
+# ------------------------------------------------------------
+# Dependencies
+# ------------------------------------------------------------
+
+/vendor/
+/node_modules/
+
+composer.phar
+
+
+# ------------------------------------------------------------
+# PHPUnit
+# ------------------------------------------------------------
+
+.phpunit.result.cache
+.phpunit.cache/
+.phpunit/
+
+coverage/
+coverage-php/
+clover.xml
+junit.xml
+
+/test-results/phpunit/
+/tests/_output/
+
+
+# ------------------------------------------------------------
+# WordPress PHPUnit test installs
+# Only relevant if your plugin installs WP test files locally
+# ------------------------------------------------------------
+
+/wordpress/
+/wordpress-tests-lib/
+/tmp/
+
+
+# ------------------------------------------------------------
+# Playwright
+# ------------------------------------------------------------
+
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/
+
+# Playwright artifacts
+*.webm
+*.mp4
+trace.zip
+*-trace.zip
+*-screenshot.png
+
+
+# ------------------------------------------------------------
+# Node / package manager logs and cache
+# ------------------------------------------------------------
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+.npm/
+.pnpm-store/
+
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+
+# ------------------------------------------------------------
+# Build outputs
+# Remove these if your plugin commits built assets
+# ------------------------------------------------------------
+
+/dist/
+/build/
+/assets/build/
+/public/build/
+
+
+# ------------------------------------------------------------
+# Environment and local config
+# ------------------------------------------------------------
+
+.env
+.env.*
+!.env.example
+!.env.dist
+
+*.local
+*.local.php
+*.local.json
+
+.wp-env.override.json
+
+
+# ------------------------------------------------------------
+# Logs
+# ------------------------------------------------------------
+
+*.log
+debug.log
+error_log
+
+
+# ------------------------------------------------------------
+# IDEs and editors
+# ------------------------------------------------------------
+
+.idea/
+
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+*.swp
+*.swo
+*~
+
+
+# ------------------------------------------------------------
+# OS files
+# ------------------------------------------------------------
+
 .DS_Store
-node_modules/
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+
+# ------------------------------------------------------------
+# Temporary files
+# ------------------------------------------------------------
+
+.cache/
+temp/
+tmp/
+*.tmp
+*.bak
+*.orig
+*.rej
+
+
+# ------------------------------------------------------------
+# Plugin package archives
+# ------------------------------------------------------------
+
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+
+
+# ------------------------------------------------------------
+# Database dumps
+# ------------------------------------------------------------
+
+*.sql
+*.sql.gz
+*.sqlite
+*.sqlite3

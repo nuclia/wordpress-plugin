@@ -1,0 +1,14 @@
+/docker
+/tests
+/node_modules
+/vendor
+/package.json
+/package-lock.json
+/phpunit.xml.dist
+/playwright.config.ts
+/.phpunit.result.cache
+/test-results
+/playwright-report
+/build
+/.git
+/.github

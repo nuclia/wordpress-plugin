@@ -75,5 +75,4 @@ GNU General Public License v2.0 / MIT License
 
 ## Contributors
 
-- Kalyx
-- Radek Friedl (Progress Software)
+- Progress Software Corporation

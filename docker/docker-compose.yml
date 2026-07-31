@@ -1,0 +1,40 @@
+name: progress-agentic-rag-plugin
+
+services:
+  php-lint:
+    image: php:8.1-cli
+    working_dir: /plugin
+    volumes:
+      - ..:/plugin
+    command: ["sh", "docker/scripts/lint-php.sh"]
+
+  phpunit:
+    image: php:8.1-cli
+    working_dir: /plugin
+    environment:
+      PHPUNIT_COVERAGE: ${PHPUNIT_COVERAGE:-0}
+    volumes:
+      - ..:/plugin
+    command: ["sh", "docker/scripts/run-phpunit.sh"]
+
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.61.0-noble
+    working_dir: /plugin
+    environment:
+      WP_BASE_URL: ${WP_BASE_URL:-http://wordpress}
+      PROGRESS_AGENTIC_RAG_E2E_KEY: ${PROGRESS_AGENTIC_RAG_E2E_KEY:-progress-agentic-rag-e2e}
+      PROGRESS_AGENTIC_RAG_TEST_TOKEN: ${PROGRESS_AGENTIC_RAG_TEST_TOKEN:-progress-agentic-rag-secret}
+      PROGRESS_AGENTIC_RAG_DISABLE_SCHEDULER: ${PROGRESS_AGENTIC_RAG_DISABLE_SCHEDULER:-0}
+    volumes:
+      - ..:/plugin
+    command: ["sh", "docker/scripts/run-playwright.sh"]
+
+  release-check:
+    image: php:8.1-cli
+    working_dir: /plugin
+    environment:
+      RELEASE_DIR: ${RELEASE_DIR:-build/progress-agentic-rag}
+      RELEASE_VERSION: ${RELEASE_VERSION:-}
+    volumes:
+      - ..:/plugin
+    command: ["sh", "docker/scripts/check-release.sh"]
