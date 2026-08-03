@@ -1,4 +1,4 @@
-# Progress Agentic RAG for WordPress
+# Progress Agentic RAG Connector for WordPress
 
 Optimize your WordPress search with Progress Agentic RAG's AI-powered search API.
 
