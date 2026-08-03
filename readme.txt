@@ -1,4 +1,5 @@
 === Progress Agentic RAG connector ===
+=== Progress Agentic RAG Connector ===
 Contributors: progresssoftware
 Tags: search, ai, knowledge-base, rag, indexing
 Requires at least: 6.8
@@ -12,7 +13,7 @@ Index WordPress content into Progress Agentic RAG and power knowledge-base searc
 
 == Description ==
 
-Progress Agentic RAG connects WordPress content to the Progress Agentic RAG service so site owners can build searchable knowledge bases from selected public content.
+Progress Agentic RAG connector connects WordPress content to the Progress Agentic RAG service so site owners can build searchable knowledge bases from selected public content.
 
 The plugin keeps service credentials server-side, indexes selected content in the background, and provides WordPress-native administration and search integration.
 
