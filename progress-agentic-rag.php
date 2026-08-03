@@ -5,7 +5,7 @@
  * @package ProgressAgenticRag
  *
  * @wordpress-plugin
- * Plugin Name:       Progress Agentic RAG
+ * Plugin Name:       Progress Agentic RAG connector
  * Plugin URI:        https://github.com/nuclia/wordpress-plugin
  * Description:       Index WordPress content into Progress Agentic RAG and power knowledge-base search.
  * Version:           1.0.0

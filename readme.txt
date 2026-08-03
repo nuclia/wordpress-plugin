@@ -1,4 +1,4 @@
-=== Progress Agentic RAG ===
+=== Progress Agentic RAG connector ===
 Contributors: progresssoftware
 Tags: search, ai, knowledge-base, rag, indexing
 Requires at least: 6.8
