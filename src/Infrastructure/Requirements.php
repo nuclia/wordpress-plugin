@@ -34,7 +34,7 @@ final class Requirements {
 		if ( ! self::is_php_supported() ) {
 			$messages[] = sprintf(
 				/* translators: 1: required PHP version, 2: current PHP version. */
-				__( 'Progress Agentic RAG requires PHP %1$s or later. Your site is running PHP %2$s.', 'progress-agentic-rag' ),
+				__( 'Progress Agentic RAG requires PHP %1$s or later. Your site is running PHP %2$s.', 'progress-agentic-rag-connector' ),
 				PROGRESS_AGENTIC_RAG_MIN_PHP_VERSION,
 				PHP_VERSION
 			);
@@ -43,7 +43,7 @@ final class Requirements {
 		if ( ! self::is_wp_supported() ) {
 			$messages[] = sprintf(
 				/* translators: 1: required WordPress version, 2: current WordPress version. */
-				__( 'Progress Agentic RAG requires WordPress %1$s or later. Your site is running WordPress %2$s.', 'progress-agentic-rag' ),
+				__( 'Progress Agentic RAG requires WordPress %1$s or later. Your site is running WordPress %2$s.', 'progress-agentic-rag-connector' ),
 				PROGRESS_AGENTIC_RAG_MIN_WP_VERSION,
 				(string) ( $GLOBALS['wp_version'] ?? 'unknown' )
 			);

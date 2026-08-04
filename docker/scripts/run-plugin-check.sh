@@ -4,8 +4,7 @@ set -eu
 wp_path="${WP_PATH:-/var/www/html}"
 wp_url="${WP_URL:-http://wordpress}"
 plugin_check_version="${PLUGIN_CHECK_VERSION:-2.0.0}"
-plugin_check_target="${PLUGIN_CHECK_TARGET:-progress-agentic-rag/progress-agentic-rag.php}"
-plugin_check_slug="${PLUGIN_CHECK_SLUG:-progress-agentic-rag}"
+plugin_check_target="${PLUGIN_CHECK_TARGET:-progress-agentic-rag-connector/progress-agentic-rag.php}"
 plugin_check_categories="${PLUGIN_CHECK_CATEGORIES:-plugin_repo}"
 plugin_check_mode="${PLUGIN_CHECK_MODE:-new}"
 plugin_check_output="$(mktemp)"
@@ -46,27 +45,21 @@ if ! wp_cli core is-installed >/dev/null 2>&1; then
 	exit 1
 fi
 
-if ! wp_cli plugin is-installed plugin-check >/dev/null 2>&1; then
+if ! wp_cli plugin is-installed plugin-check >/dev/null 2>&1 ||
+	[ "$(wp_cli plugin get plugin-check --field=version)" != "$plugin_check_version" ]; then
 	install_plugin_check
 else
 	wp_cli plugin activate plugin-check >/dev/null
 fi
 
-plugin_check_cli="$wp_path/wp-content/plugins/plugin-check/cli.php"
-if [ ! -f "$plugin_check_cli" ]; then
-	echo "Plugin Check CLI loader not found: $plugin_check_cli"
-	exit 1
-fi
+echo "Running Plugin Check $plugin_check_version with the $plugin_check_categories category, automatic slug detection, and no excluded directories against $plugin_check_target."
 
 set +e
 wp_cli plugin check "$plugin_check_target" \
-	--require="$plugin_check_cli" \
 	--categories="$plugin_check_categories" \
 	--format=strict-json \
 	--fields=file,line,column,type,code,message,docs \
 	--mode="$plugin_check_mode" \
-	--slug="$plugin_check_slug" \
-	--exclude-directories=includes/libraries/action-scheduler \
 	> "$plugin_check_output"
 plugin_check_status=$?
 set -e
@@ -107,7 +100,7 @@ if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $results ) ) {
 $count = count( $results );
 
 if ( $count > 0 ) {
-	fwrite( STDERR, sprintf( "Plugin Check found %d Plugin repo issue(s).\n", $count ) );
+	fwrite( STDERR, sprintf( "Plugin Check found %d issue(s).\n", $count ) );
 
 	$types = array();
 	$codes = array();
@@ -133,7 +126,7 @@ if ( $count > 0 ) {
 	foreach ( $codes as $code => $code_count ) {
 		fwrite( STDERR, sprintf( "  %d %s\n", $code_count, $code ) );
 		++$shown;
-		if ( 10 <= $shown ) {
+		if ( 20 <= $shown ) {
 			break;
 		}
 	}
@@ -153,4 +146,4 @@ if ( $count > 0 ) {
 }
 ' "$plugin_check_output"
 
-echo "Plugin Check found no Plugin repo issues."
+echo "Plugin Check found no issues."

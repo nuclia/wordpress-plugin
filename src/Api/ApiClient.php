@@ -22,7 +22,7 @@ final class ApiClient {
 		$token    = $this->settings->get_string( SettingsRepository::OPTION_TOKEN );
 
 		if ( '' === $endpoint || '' === $token ) {
-			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$response = wp_remote_request(
@@ -50,7 +50,7 @@ final class ApiClient {
 			}
 
 			if ( '' === $existing['rid'] ) {
-				return new WP_Error( 'progress_agentic_rag_existing_resource_missing', __( 'Progress Agentic RAG reports the resource already exists, but it could not be found by slug.', 'progress-agentic-rag' ) );
+				return new WP_Error( 'progress_agentic_rag_existing_resource_missing', __( 'Progress Agentic RAG reports the resource already exists, but it could not be found by slug.', 'progress-agentic-rag-connector' ) );
 			}
 
 			$seqid = $existing['seqid'];
@@ -71,7 +71,7 @@ final class ApiClient {
 		}
 
 		if ( 201 !== $response_code ) {
-			return new WP_Error( 'progress_agentic_rag_resource_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG rejected the resource.', 'progress-agentic-rag' ) ) );
+			return new WP_Error( 'progress_agentic_rag_resource_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG rejected the resource.', 'progress-agentic-rag-connector' ) ) );
 		}
 
 		$api_response = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -79,7 +79,7 @@ final class ApiClient {
 		$seqid        = is_array( $api_response ) && isset( $api_response['seqid'] ) ? sanitize_text_field( (string) $api_response['seqid'] ) : '';
 
 		if ( '' === $rid ) {
-			return new WP_Error( 'progress_agentic_rag_missing_resource_id', __( 'Progress Agentic RAG did not return a resource ID.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_missing_resource_id', __( 'Progress Agentic RAG did not return a resource ID.', 'progress-agentic-rag-connector' ) );
 		}
 
 		if ( 'attachment' === $post->post_type ) {
@@ -109,7 +109,7 @@ final class ApiClient {
 		$token    = $this->settings->get_string( SettingsRepository::OPTION_TOKEN );
 
 		if ( '' === $endpoint || '' === $token ) {
-			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$response = wp_remote_request(
@@ -136,7 +136,7 @@ final class ApiClient {
 		}
 
 		if ( ! in_array( $response_code, [ 200, 201 ], true ) ) {
-			return new WP_Error( 'progress_agentic_rag_resource_update_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG rejected the resource update.', 'progress-agentic-rag' ) ) );
+			return new WP_Error( 'progress_agentic_rag_resource_update_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG rejected the resource update.', 'progress-agentic-rag-connector' ) ) );
 		}
 
 		$api_response = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -164,7 +164,7 @@ final class ApiClient {
 		$rid      = sanitize_text_field( $rid );
 
 		if ( '' === $endpoint || '' === $token || '' === $rid ) {
-			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$response = wp_remote_request(
@@ -192,7 +192,7 @@ final class ApiClient {
 		}
 
 		if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
-			return new WP_Error( 'progress_agentic_rag_label_update_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG rejected the label update.', 'progress-agentic-rag' ) ) );
+			return new WP_Error( 'progress_agentic_rag_label_update_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG rejected the label update.', 'progress-agentic-rag-connector' ) ) );
 		}
 
 		return true;
@@ -280,7 +280,7 @@ final class ApiClient {
 		$rid      = sanitize_text_field( $rid );
 
 		if ( '' === $endpoint || '' === $token || '' === $rid ) {
-			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$response = wp_remote_request(
@@ -300,7 +300,7 @@ final class ApiClient {
 
 		$response_code = (int) wp_remote_retrieve_response_code( $response );
 		if ( ! in_array( $response_code, [ 204, 404 ], true ) ) {
-			return new WP_Error( 'progress_agentic_rag_delete_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG rejected the resource deletion.', 'progress-agentic-rag' ) ) );
+			return new WP_Error( 'progress_agentic_rag_delete_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG rejected the resource deletion.', 'progress-agentic-rag-connector' ) ) );
 		}
 
 		$this->delete_index( $post_id );
@@ -443,7 +443,7 @@ final class ApiClient {
 	 */
 	private function find_resource_by_slug( string $slug ): array|WP_Error {
 		if ( '' === $slug ) {
-			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$resources = $this->find_resources_by_slugs( [ $slug ] );
@@ -479,7 +479,7 @@ final class ApiClient {
 		}
 
 		if ( '' === $endpoint || '' === $token ) {
-			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$page_size = 250;
@@ -503,7 +503,7 @@ final class ApiClient {
 			}
 
 			if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
-				return new WP_Error( 'progress_agentic_rag_existing_resource_lookup_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG could not look up the existing resource.', 'progress-agentic-rag' ) ) );
+				return new WP_Error( 'progress_agentic_rag_existing_resource_lookup_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG could not look up the existing resource.', 'progress-agentic-rag-connector' ) ) );
 			}
 
 			$api_response = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -813,7 +813,7 @@ final class ApiClient {
 		}
 
 		if ( ! in_array( (int) wp_remote_retrieve_response_code( $response ), [ 200, 201 ], true ) ) {
-			return new WP_Error( 'progress_agentic_rag_file_upload_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG rejected the attachment file.', 'progress-agentic-rag' ) ) );
+			return new WP_Error( 'progress_agentic_rag_file_upload_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG rejected the attachment file.', 'progress-agentic-rag-connector' ) ) );
 		}
 
 		$api_response = json_decode( wp_remote_retrieve_body( $response ), true );

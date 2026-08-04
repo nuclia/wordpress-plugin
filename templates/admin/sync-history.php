@@ -12,53 +12,53 @@ defined( 'ABSPATH' ) || exit;
 <section class="progress-agentic-rag__panel" aria-labelledby="progress-agentic-rag-history-title">
 	<div class="progress-agentic-rag__panel-header">
 		<div>
-			<div class="progress-agentic-rag__section-label"><?php esc_html_e( 'Recent operations', 'progress-agentic-rag' ); ?></div>
-			<h2 id="progress-agentic-rag-history-title"><?php esc_html_e( 'Sync history', 'progress-agentic-rag' ); ?></h2>
+			<div class="progress-agentic-rag__section-label"><?php esc_html_e( 'Recent operations', 'progress-agentic-rag-connector' ); ?></div>
+			<h2 id="progress-agentic-rag-history-title"><?php esc_html_e( 'Sync history', 'progress-agentic-rag-connector' ); ?></h2>
 		</div>
 		<button type="button" class="progress-agentic-rag__button progress-agentic-rag__button--secondary" data-progress-agentic-rag-retry-failed-sync <?php disabled( empty( $failed_sync_items ) || ! $api_connected || ! $scheduler_available ); ?>>
-			<?php esc_html_e( 'Retry failed items', 'progress-agentic-rag' ); ?>
+			<?php esc_html_e( 'Retry failed items', 'progress-agentic-rag-connector' ); ?>
 		</button>
 	</div>
 	<div class="progress-agentic-rag__admin-section" aria-labelledby="progress-agentic-rag-queue-title">
 		<div class="progress-agentic-rag__admin-section-header">
 			<div>
-				<div class="progress-agentic-rag__section-label"><?php esc_html_e( 'Action Scheduler', 'progress-agentic-rag' ); ?></div>
-				<h3 id="progress-agentic-rag-queue-title"><?php esc_html_e( 'Queue health', 'progress-agentic-rag' ); ?></h3>
+				<div class="progress-agentic-rag__section-label"><?php esc_html_e( 'Action Scheduler', 'progress-agentic-rag-connector' ); ?></div>
+				<h3 id="progress-agentic-rag-queue-title"><?php esc_html_e( 'Queue health', 'progress-agentic-rag-connector' ); ?></h3>
 			</div>
 			<strong><?php echo esc_html( (string) $scheduler_status['label'] ); ?></strong>
 		</div>
 		<p><?php echo esc_html( (string) $scheduler_status['message'] ); ?></p>
 		<ul class="progress-agentic-rag__check-list">
 			<?php /* translators: %s: automatic sync status message. */ ?>
-			<li><?php printf( esc_html__( 'Automatic sync: %s', 'progress-agentic-rag' ), esc_html( (string) ( $background_status['message'] ?? '' ) ) ); ?></li>
+			<li><?php printf( esc_html__( 'Automatic sync: %s', 'progress-agentic-rag-connector' ), esc_html( (string) ( $background_status['message'] ?? '' ) ) ); ?></li>
 			<?php /* translators: %s: manual sync status message. */ ?>
-			<li><?php printf( esc_html__( 'Manual sync: %s', 'progress-agentic-rag' ), esc_html( (string) ( $manual_status['message'] ?? __( 'No manual sync running.', 'progress-agentic-rag' ) ) ) ); ?></li>
+			<li><?php printf( esc_html__( 'Manual sync: %s', 'progress-agentic-rag-connector' ), esc_html( (string) ( $manual_status['message'] ?? __( 'No manual sync running.', 'progress-agentic-rag-connector' ) ) ) ); ?></li>
 			<?php /* translators: %s: delete status message. */ ?>
-			<li><?php printf( esc_html__( 'Delete state: %s', 'progress-agentic-rag' ), esc_html( (string) ( $delete_status['message'] ?? __( 'No delete running.', 'progress-agentic-rag' ) ) ) ); ?></li>
+			<li><?php printf( esc_html__( 'Delete state: %s', 'progress-agentic-rag-connector' ), esc_html( (string) ( $delete_status['message'] ?? __( 'No delete running.', 'progress-agentic-rag-connector' ) ) ) ); ?></li>
 			<?php /* translators: 1: pending label count, 2: running label count, 3: failed label count. */ ?>
-			<li><?php printf( esc_html__( 'Label queue: %1$d pending, %2$d running, %3$d failed.', 'progress-agentic-rag' ), (int) $label_reprocess_status['pending'], (int) $label_reprocess_status['running'], (int) $label_reprocess_status['failed'] ); ?></li>
+			<li><?php printf( esc_html__( 'Label queue: %1$d pending, %2$d running, %3$d failed.', 'progress-agentic-rag-connector' ), (int) $label_reprocess_status['pending'], (int) $label_reprocess_status['running'], (int) $label_reprocess_status['failed'] ); ?></li>
 		</ul>
 	</div>
 	<p data-progress-agentic-rag-retry-status>
 		<?php
 		printf(
 			/* translators: %d: failed sync item count. */
-			esc_html__( '%d failed sync item(s) are available for retry.', 'progress-agentic-rag' ),
+			esc_html__( '%d failed sync item(s) are available for retry.', 'progress-agentic-rag-connector' ),
 			count( $failed_sync_items )
 		);
 		?>
 	</p>
 	<?php if ( empty( $history_rows ) ) : ?>
-		<p class="progress-agentic-rag__muted"><?php esc_html_e( 'No sync history has been recorded yet.', 'progress-agentic-rag' ); ?></p>
+		<p class="progress-agentic-rag__muted"><?php esc_html_e( 'No sync history has been recorded yet.', 'progress-agentic-rag-connector' ); ?></p>
 	<?php else : ?>
 		<table class="progress-agentic-rag__sync-table">
 			<thead>
 				<tr>
-					<th scope="col"><?php esc_html_e( 'Run', 'progress-agentic-rag' ); ?></th>
-					<th scope="col"><?php esc_html_e( 'Status', 'progress-agentic-rag' ); ?></th>
-					<th scope="col"><?php esc_html_e( 'Finished', 'progress-agentic-rag' ); ?></th>
-					<th scope="col"><?php esc_html_e( 'Totals', 'progress-agentic-rag' ); ?></th>
-					<th scope="col"><?php esc_html_e( 'Last detail', 'progress-agentic-rag' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Run', 'progress-agentic-rag-connector' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Status', 'progress-agentic-rag-connector' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Finished', 'progress-agentic-rag-connector' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Totals', 'progress-agentic-rag-connector' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Last detail', 'progress-agentic-rag-connector' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -71,7 +71,7 @@ defined( 'ABSPATH' ) || exit;
 							<?php
 							printf(
 								/* translators: 1: completed count, 2: total count, 3: failed count. */
-								esc_html__( '%1$d/%2$d complete, %3$d failed', 'progress-agentic-rag' ),
+								esc_html__( '%1$d/%2$d complete, %3$d failed', 'progress-agentic-rag-connector' ),
 								(int) ( $entry['complete'] ?? 0 ),
 								(int) ( $entry['total'] ?? 0 ),
 								(int) ( $entry['failed'] ?? 0 )

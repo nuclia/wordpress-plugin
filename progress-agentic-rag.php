@@ -15,7 +15,7 @@
  * Author URI:        https://www.progress.com/
  * License:           GPL v3 or later
  * License URI:       https://www.gnu.org/licenses/gpl-3.0.html
- * Text Domain:       progress-agentic-rag
+ * Text Domain:       progress-agentic-rag-connector
  * Domain Path:       /languages
  */
 
@@ -51,7 +51,7 @@ if ( ! Requirements::is_supported() ) {
 	return;
 }
 
-require_once PROGRESS_AGENTIC_RAG_PATH . 'includes/libraries/action-scheduler/action-scheduler.php';
+require_once PROGRESS_AGENTIC_RAG_PATH . 'vendor/action-scheduler/action-scheduler.php';
 
 add_action(
 	'plugins_loaded',

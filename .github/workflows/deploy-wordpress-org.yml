@@ -112,27 +112,15 @@ jobs:
 
       - name: Prepare release artifact
         run: |
-          rm -rf build/progress-agentic-rag
-          mkdir -p build/progress-agentic-rag
-          rsync -a ./ build/progress-agentic-rag/ \
-            --exclude '.git' \
-            --exclude '.github' \
+          rm -rf build/progress-agentic-rag-connector
+          mkdir -p build/progress-agentic-rag-connector
+          rsync -a ./ build/progress-agentic-rag-connector/ \
+            --exclude-from='.distignore' \
             --exclude '.distignore' \
-            --exclude '.gitignore' \
-            --exclude 'build' \
-            --exclude 'docker' \
-            --exclude 'tests' \
-            --exclude 'node_modules' \
-            --exclude 'vendor' \
-            --exclude 'package.json' \
-            --exclude 'package-lock.json' \
-            --exclude 'phpunit.xml.dist' \
-            --exclude 'playwright.config.ts' \
-            --exclude 'README.md' \
-            --exclude '.DS_Store'
+            --exclude '.gitignore'
 
       - name: Release artifact check
-        run: RELEASE_VERSION="${RELEASE_VERSION}" RELEASE_DIR=build/progress-agentic-rag docker compose -f docker/docker-compose.yml run --rm release-check
+        run: RELEASE_VERSION="${RELEASE_VERSION}" RELEASE_DIR=build/progress-agentic-rag-connector docker compose -f docker/docker-compose.yml run --rm release-check
 
       - name: Deployment dry run complete
         if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
@@ -144,5 +132,5 @@ jobs:
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
-          SLUG: progress-agentic-rag
-          BUILD_DIR: build/progress-agentic-rag
+          SLUG: progress-agentic-rag-connector
+          BUILD_DIR: build/progress-agentic-rag-connector

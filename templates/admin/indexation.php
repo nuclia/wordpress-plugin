@@ -14,28 +14,28 @@ $background_percent = max( 0, min( 100, (int) ( $background_sync_status['percent
 	<section class="progress-agentic-rag__panel" aria-labelledby="progress-agentic-rag-indexation-title">
 		<div class="progress-agentic-rag__panel-header">
 			<div>
-				<div class="progress-agentic-rag__section-label"><?php esc_html_e( 'Content scope', 'progress-agentic-rag' ); ?></div>
-				<h2 id="progress-agentic-rag-indexation-title"><?php esc_html_e( 'Indexation', 'progress-agentic-rag' ); ?></h2>
+				<div class="progress-agentic-rag__section-label"><?php esc_html_e( 'Content scope', 'progress-agentic-rag-connector' ); ?></div>
+				<h2 id="progress-agentic-rag-indexation-title"><?php esc_html_e( 'Indexation', 'progress-agentic-rag-connector' ); ?></h2>
 			</div>
 			<div class="progress-agentic-rag__status-grid">
 				<div class="progress-agentic-rag__status">
-					<span><?php esc_html_e( 'Connection', 'progress-agentic-rag' ); ?></span>
+					<span><?php esc_html_e( 'Connection', 'progress-agentic-rag-connector' ); ?></span>
 					<strong><?php echo esc_html( $connection_status_label ); ?></strong>
 				</div>
 				<div class="progress-agentic-rag__status">
-					<span><?php esc_html_e( 'Background jobs', 'progress-agentic-rag' ); ?></span>
+					<span><?php esc_html_e( 'Background jobs', 'progress-agentic-rag-connector' ); ?></span>
 					<strong><?php echo esc_html( (string) $scheduler_status['label'] ); ?></strong>
 				</div>
 				<div class="progress-agentic-rag__status">
-					<span><?php esc_html_e( 'Enabled types', 'progress-agentic-rag' ); ?></span>
+					<span><?php esc_html_e( 'Enabled types', 'progress-agentic-rag-connector' ); ?></span>
 					<strong><?php echo esc_html( (string) $selected_count ); ?></strong>
 				</div>
 				<div class="progress-agentic-rag__status">
-					<span><?php esc_html_e( 'Synced', 'progress-agentic-rag' ); ?></span>
+					<span><?php esc_html_e( 'Synced', 'progress-agentic-rag-connector' ); ?></span>
 					<strong><?php echo esc_html( (string) ( $sync_status['total_synced'] ?? 0 ) ); ?></strong>
 				</div>
 				<div class="progress-agentic-rag__status">
-					<span><?php esc_html_e( 'Remaining', 'progress-agentic-rag' ); ?></span>
+					<span><?php esc_html_e( 'Remaining', 'progress-agentic-rag-connector' ); ?></span>
 					<strong><?php echo esc_html( (string) ( $sync_status['total_remaining'] ?? 0 ) ); ?></strong>
 				</div>
 			</div>
@@ -62,21 +62,21 @@ $background_percent = max( 0, min( 100, (int) ( $background_sync_status['percent
 			<div class="progress-agentic-rag__sync-overview" aria-labelledby="progress-agentic-rag-sync-overview-title">
 				<div class="progress-agentic-rag__sync-overview-header">
 					<div>
-						<div class="progress-agentic-rag__section-label"><?php esc_html_e( 'Current sync state', 'progress-agentic-rag' ); ?></div>
-						<h3 id="progress-agentic-rag-sync-overview-title"><?php esc_html_e( 'Synchronized content', 'progress-agentic-rag' ); ?></h3>
+						<div class="progress-agentic-rag__section-label"><?php esc_html_e( 'Current sync state', 'progress-agentic-rag-connector' ); ?></div>
+						<h3 id="progress-agentic-rag-sync-overview-title"><?php esc_html_e( 'Synchronized content', 'progress-agentic-rag-connector' ); ?></h3>
 					</div>
 					<div class="progress-agentic-rag__sync-total">
-						<span><?php esc_html_e( 'Stored mappings', 'progress-agentic-rag' ); ?></span>
+						<span><?php esc_html_e( 'Stored mappings', 'progress-agentic-rag-connector' ); ?></span>
 						<strong data-progress-agentic-rag-synced-count><?php echo esc_html( (string) ( $sync_status['total_mapped'] ?? 0 ) ); ?></strong>
 					</div>
 				</div>
 				<table class="progress-agentic-rag__sync-table">
 					<thead>
 						<tr>
-							<th scope="col"><?php esc_html_e( 'Type', 'progress-agentic-rag' ); ?></th>
-							<th scope="col"><?php esc_html_e( 'Synced', 'progress-agentic-rag' ); ?></th>
-							<th scope="col"><?php esc_html_e( 'Indexable', 'progress-agentic-rag' ); ?></th>
-							<th scope="col"><?php esc_html_e( 'Remaining', 'progress-agentic-rag' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Type', 'progress-agentic-rag-connector' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Synced', 'progress-agentic-rag-connector' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Indexable', 'progress-agentic-rag-connector' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Remaining', 'progress-agentic-rag-connector' ); ?></th>
 						</tr>
 					</thead>
 					<tbody>
@@ -95,7 +95,7 @@ $background_percent = max( 0, min( 100, (int) ( $background_sync_status['percent
 				</table>
 			</div>
 			<div class="progress-agentic-rag__actions">
-				<button type="submit" class="progress-agentic-rag__button progress-agentic-rag__button--primary"><?php esc_html_e( 'Save indexation settings', 'progress-agentic-rag' ); ?></button>
+				<button type="submit" class="progress-agentic-rag__button progress-agentic-rag__button--primary"><?php esc_html_e( 'Save indexation settings', 'progress-agentic-rag-connector' ); ?></button>
 				<button type="button" class="progress-agentic-rag__button progress-agentic-rag__button--secondary" data-progress-agentic-rag-manual-sync <?php disabled( $manual_sync_disabled ); ?>><?php echo esc_html( $manual_sync_button_text ); ?></button>
 				<button type="button" class="progress-agentic-rag__button progress-agentic-rag__button--danger" data-progress-agentic-rag-delete-synced <?php disabled( $delete_disabled ); ?>><?php echo esc_html( $delete_button_text ); ?></button>
 			</div>
@@ -104,7 +104,7 @@ $background_percent = max( 0, min( 100, (int) ( $background_sync_status['percent
 	<aside class="progress-agentic-rag__background-sync" aria-labelledby="progress-agentic-rag-background-sync-title" aria-live="polite" data-progress-agentic-rag-background-sync <?php echo empty( $background_sync_status['is_active'] ) ? 'hidden' : ''; ?>>
 		<div class="progress-agentic-rag__background-sync-header">
 			<div>
-				<h3 id="progress-agentic-rag-background-sync-title"><?php esc_html_e( 'Automatic sync', 'progress-agentic-rag' ); ?></h3>
+				<h3 id="progress-agentic-rag-background-sync-title"><?php esc_html_e( 'Automatic sync', 'progress-agentic-rag-connector' ); ?></h3>
 			</div>
 			<strong data-progress-agentic-rag-background-percent><?php echo esc_html( (string) $background_percent ); ?>%</strong>
 		</div>
@@ -114,23 +114,23 @@ $background_percent = max( 0, min( 100, (int) ( $background_sync_status['percent
 		</div>
 		<div class="progress-agentic-rag__background-sync-meta">
 			<span>
-				<?php esc_html_e( 'Processed', 'progress-agentic-rag' ); ?>
+				<?php esc_html_e( 'Processed', 'progress-agentic-rag-connector' ); ?>
 				<strong data-progress-agentic-rag-background-processed><?php echo esc_html( (string) ( $background_sync_status['processed'] ?? 0 ) ); ?></strong>/<strong data-progress-agentic-rag-background-total><?php echo esc_html( (string) ( $background_sync_status['total'] ?? 0 ) ); ?></strong>
 			</span>
 			<span>
-				<?php esc_html_e( 'Failed', 'progress-agentic-rag' ); ?>
+				<?php esc_html_e( 'Failed', 'progress-agentic-rag-connector' ); ?>
 				<strong data-progress-agentic-rag-background-failed><?php echo esc_html( (string) ( $background_sync_status['failed'] ?? 0 ) ); ?></strong>
 			</span>
 			<span>
-				<?php esc_html_e( 'Queue', 'progress-agentic-rag' ); ?>
+				<?php esc_html_e( 'Queue', 'progress-agentic-rag-connector' ); ?>
 				<strong data-progress-agentic-rag-background-pending><?php echo esc_html( (string) ( $background_sync_status['pending'] ?? 0 ) ); ?></strong>
-				<?php esc_html_e( 'pending,', 'progress-agentic-rag' ); ?>
+				<?php esc_html_e( 'pending,', 'progress-agentic-rag-connector' ); ?>
 				<strong data-progress-agentic-rag-background-running><?php echo esc_html( (string) ( $background_sync_status['running'] ?? 0 ) ); ?></strong>
-				<?php esc_html_e( 'running', 'progress-agentic-rag' ); ?>
+				<?php esc_html_e( 'running', 'progress-agentic-rag-connector' ); ?>
 			</span>
 		</div>
 		<p class="progress-agentic-rag__background-sync-current">
-			<?php esc_html_e( 'Current:', 'progress-agentic-rag' ); ?>
+			<?php esc_html_e( 'Current:', 'progress-agentic-rag-connector' ); ?>
 			<span data-progress-agentic-rag-background-current><?php echo esc_html( (string) ( $background_sync_status['current'] ?? '' ) ); ?></span>
 		</p>
 	</aside>

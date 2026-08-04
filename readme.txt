@@ -1,5 +1,4 @@
 === Progress Agentic RAG connector ===
-=== Progress Agentic RAG Connector ===
 Contributors: progresssoftware
 Tags: search, ai, knowledge-base, rag, indexing
 Requires at least: 6.8
@@ -32,7 +31,7 @@ Service details:
 
 == Installation ==
 
-1. Upload the plugin files to the `/wp-content/plugins/progress-agentic-rag` directory, or install the plugin through WordPress.
+1. Upload the plugin files to the `/wp-content/plugins/progress-agentic-rag-connector` directory, or install the plugin through WordPress.
 2. Activate the plugin through the Plugins screen.
 3. Configure Progress Agentic RAG from the Progress Agentic RAG admin menu.
 

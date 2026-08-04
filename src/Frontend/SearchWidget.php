@@ -161,10 +161,10 @@ final class SearchWidget {
 	 */
 	public static function feature_options(): array {
 		return [
-			'answers'     => __( 'Answers', 'progress-agentic-rag' ),
-			'rephrase'    => __( 'Rephrase', 'progress-agentic-rag' ),
-			'filter'      => __( 'Filters', 'progress-agentic-rag' ),
-			'suggestions' => __( 'Suggestions', 'progress-agentic-rag' ),
+			'answers'     => __( 'Answers', 'progress-agentic-rag-connector' ),
+			'rephrase'    => __( 'Rephrase', 'progress-agentic-rag-connector' ),
+			'filter'      => __( 'Filters', 'progress-agentic-rag-connector' ),
+			'suggestions' => __( 'Suggestions', 'progress-agentic-rag-connector' ),
 		];
 	}
 

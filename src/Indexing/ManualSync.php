@@ -59,20 +59,20 @@ final class ManualSync {
 		}
 
 		if ( 'running' === ( $this->delete_state()['status'] ?? '' ) ) {
-			return new WP_Error( 'progress_agentic_rag_delete_running', __( 'Wait for synced resource deletion to finish before starting a manual sync.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_delete_running', __( 'Wait for synced resource deletion to finish before starting a manual sync.', 'progress-agentic-rag-connector' ) );
 		}
 
 		if ( ! $this->scheduler_available() ) {
-			return new WP_Error( 'progress_agentic_rag_scheduler_missing', __( 'Background scheduling is not available.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_scheduler_missing', __( 'Background scheduling is not available.', 'progress-agentic-rag-connector' ) );
 		}
 
 		if ( ! $this->settings->get_api_is_reachable() ) {
-			return new WP_Error( 'progress_agentic_rag_connection_missing', __( 'Validate the Progress Agentic RAG connection before syncing content.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_connection_missing', __( 'Validate the Progress Agentic RAG connection before syncing content.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$post_types = $this->sanitize_post_types( $post_types );
 		if ( empty( $post_types ) ) {
-			return new WP_Error( 'progress_agentic_rag_no_post_types', __( 'Select at least one content type to sync.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_no_post_types', __( 'Select at least one content type to sync.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$reconcile = $this->api_client->reconcile_synced_resources();
@@ -101,20 +101,20 @@ final class ManualSync {
 
 		$sync_id  = wp_generate_uuid4();
 		$total    = count( $entities );
-		$message  = 0 === $total ? __( 'Everything selected is already synced.', 'progress-agentic-rag' ) : sprintf(
+		$message  = 0 === $total ? __( 'Everything selected is already synced.', 'progress-agentic-rag-connector' ) : sprintf(
 			/* translators: %d is the number of entities queued for manual sync. */
-			_n( 'Sync in progress: 0 of %d processed.', 'Sync in progress: 0 of %d processed.', $total, 'progress-agentic-rag' ),
+			_n( 'Sync in progress: 0 of %d processed.', 'Sync in progress: 0 of %d processed.', $total, 'progress-agentic-rag-connector' ),
 			$total
 		);
 
 		if ( $recovered > 0 ) {
 			$message = 0 === $total ? sprintf(
 				/* translators: %d is the number of upstream resources recovered into the local sync table. */
-				_n( 'Recovered %d existing upstream resource. Everything selected is already synced.', 'Recovered %d existing upstream resources. Everything selected is already synced.', $recovered, 'progress-agentic-rag' ),
+				_n( 'Recovered %d existing upstream resource. Everything selected is already synced.', 'Recovered %d existing upstream resources. Everything selected is already synced.', $recovered, 'progress-agentic-rag-connector' ),
 				$recovered
 			) : sprintf(
 				/* translators: 1: recovered upstream resource count, 2: number of entities queued for manual sync. */
-				_n( 'Recovered %1$d existing upstream resource. Sync in progress: 0 of %2$d processed.', 'Recovered %1$d existing upstream resources. Sync in progress: 0 of %2$d processed.', $recovered, 'progress-agentic-rag' ),
+				_n( 'Recovered %1$d existing upstream resource. Sync in progress: 0 of %2$d processed.', 'Recovered %1$d existing upstream resources. Sync in progress: 0 of %2$d processed.', $recovered, 'progress-agentic-rag-connector' ),
 				$recovered,
 				$total
 			);
@@ -127,7 +127,7 @@ final class ManualSync {
 			'completed'  => 0,
 			'failed'     => 0,
 			'recovered'  => $recovered,
-			'current'    => 0 === $total ? __( 'No eligible entities to sync.', 'progress-agentic-rag' ) : __( 'Waiting for the first entity.', 'progress-agentic-rag' ),
+			'current'    => 0 === $total ? __( 'No eligible entities to sync.', 'progress-agentic-rag-connector' ) : __( 'Waiting for the first entity.', 'progress-agentic-rag-connector' ),
 			'message'    => $message,
 			'started_at' => time(),
 			'updated_at' => time(),
@@ -163,19 +163,19 @@ final class ManualSync {
 
 		if ( $total > 0 && $done >= $total && 'running' === ( $state['status'] ?? '' ) ) {
 			$state['status']     = 'complete';
-			$state['message']    = __( 'Manual sync complete.', 'progress-agentic-rag' );
+			$state['message']    = __( 'Manual sync complete.', 'progress-agentic-rag-connector' );
 			$state['updated_at'] = time();
 			$state               = $this->record_history( $state, 'manual_sync', (int) ( $state['completed'] ?? 0 ) );
 			update_option( SettingsRepository::OPTION_MANUAL_SYNC_STATE, $state );
 		}
 
-		$current = (string) ( $state['current'] ?? __( 'Waiting to sync.', 'progress-agentic-rag' ) );
+		$current = (string) ( $state['current'] ?? __( 'Waiting to sync.', 'progress-agentic-rag-connector' ) );
 		$message = (string) ( $state['message'] ?? '' );
 
 		if ( 'running' === ( $state['status'] ?? '' ) ) {
 			$message = sprintf(
 				/* translators: 1: processed entity count, 2: total entity count. */
-				__( 'Sync in progress: %1$d of %2$d processed.', 'progress-agentic-rag' ),
+				__( 'Sync in progress: %1$d of %2$d processed.', 'progress-agentic-rag-connector' ),
 				$done,
 				$total
 			);
@@ -183,15 +183,15 @@ final class ManualSync {
 			if ( $recovered > 0 ) {
 				$message = sprintf(
 					/* translators: 1: recovered upstream resource count, 2: processed entity count, 3: total entity count. */
-					_n( 'Recovered %1$d existing upstream resource. Sync in progress: %2$d of %3$d processed.', 'Recovered %1$d existing upstream resources. Sync in progress: %2$d of %3$d processed.', $recovered, 'progress-agentic-rag' ),
+					_n( 'Recovered %1$d existing upstream resource. Sync in progress: %2$d of %3$d processed.', 'Recovered %1$d existing upstream resources. Sync in progress: %2$d of %3$d processed.', $recovered, 'progress-agentic-rag-connector' ),
 					$recovered,
 					$done,
 					$total
 				);
 			}
 
-			if ( '' === $current || __( 'Queued manual sync.', 'progress-agentic-rag' ) === $current ) {
-				$current = 0 === $done ? __( 'Waiting for the first entity.', 'progress-agentic-rag' ) : __( 'Waiting for the next entity.', 'progress-agentic-rag' );
+			if ( '' === $current || __( 'Queued manual sync.', 'progress-agentic-rag-connector' ) === $current ) {
+				$current = 0 === $done ? __( 'Waiting for the first entity.', 'progress-agentic-rag-connector' ) : __( 'Waiting for the next entity.', 'progress-agentic-rag-connector' );
 			}
 		}
 
@@ -214,22 +214,22 @@ final class ManualSync {
 	 */
 	public function retry_failed_sync_items(): array|WP_Error {
 		if ( ! $this->scheduler_available() ) {
-			return new WP_Error( 'progress_agentic_rag_scheduler_missing', __( 'Background scheduling is not available.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_scheduler_missing', __( 'Background scheduling is not available.', 'progress-agentic-rag-connector' ) );
 		}
 
 		if ( ! $this->settings->get_api_is_reachable() ) {
-			return new WP_Error( 'progress_agentic_rag_connection_missing', __( 'Validate the Progress Agentic RAG connection before retrying failed sync items.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_connection_missing', __( 'Validate the Progress Agentic RAG connection before retrying failed sync items.', 'progress-agentic-rag-connector' ) );
 		}
 
 		if ( 'running' === ( $this->state()['status'] ?? '' ) || 'running' === ( $this->delete_state()['status'] ?? '' ) ) {
-			return new WP_Error( 'progress_agentic_rag_sync_running', __( 'Wait for the current sync operation to finish before retrying failed items.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_sync_running', __( 'Wait for the current sync operation to finish before retrying failed items.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$items = $this->settings->get_failed_sync_items();
 		if ( empty( $items ) ) {
 			$status              = $this->background_sync_status();
 			$status['scheduled'] = 0;
-			$status['message']   = __( 'No failed sync items are waiting for retry.', 'progress-agentic-rag' );
+			$status['message']   = __( 'No failed sync items are waiting for retry.', 'progress-agentic-rag-connector' );
 			return $status;
 		}
 
@@ -263,7 +263,7 @@ final class ManualSync {
 		$status['scheduled'] = $scheduled;
 		$status['message']   = sprintf(
 			/* translators: %d is the number of failed sync items scheduled for retry. */
-			_n( 'Scheduled retry for %d failed sync item.', 'Scheduled retries for %d failed sync items.', $scheduled, 'progress-agentic-rag' ),
+			_n( 'Scheduled retry for %d failed sync item.', 'Scheduled retries for %d failed sync items.', $scheduled, 'progress-agentic-rag-connector' ),
 			$scheduled
 		);
 
@@ -334,8 +334,8 @@ final class ManualSync {
 		if ( $total > 0 && $processed >= $total && 'running' === ( $state['status'] ?? '' ) ) {
 			$state['status']     = 'complete';
 			$state['message']    = $failed > 0
-				? __( 'Automatic background sync finished with failures.', 'progress-agentic-rag' )
-				: __( 'Automatic background sync complete.', 'progress-agentic-rag' );
+				? __( 'Automatic background sync finished with failures.', 'progress-agentic-rag-connector' )
+				: __( 'Automatic background sync complete.', 'progress-agentic-rag-connector' );
 			$state['updated_at'] = time();
 			$state               = $this->record_history( $state, 'automatic_sync', $completed );
 			update_option( SettingsRepository::OPTION_BACKGROUND_SYNC_STATE, $state );
@@ -344,7 +344,7 @@ final class ManualSync {
 		if ( 'running' === ( $state['status'] ?? '' ) ) {
 			$state['message'] = sprintf(
 				/* translators: 1: processed entity count, 2: total queued entity count. */
-				__( 'Automatic sync in progress: %1$d of %2$d processed.', 'progress-agentic-rag' ),
+				__( 'Automatic sync in progress: %1$d of %2$d processed.', 'progress-agentic-rag-connector' ),
 				$processed,
 				$total
 			);
@@ -365,8 +365,8 @@ final class ManualSync {
 			'pending'       => $pending,
 			'running'       => $running,
 			'action_failed' => $action_failed,
-			'current'       => (string) ( $state['current'] ?? __( 'No automatic sync running.', 'progress-agentic-rag' ) ),
-			'message'       => (string) ( $state['message'] ?? __( 'No automatic sync running.', 'progress-agentic-rag' ) ),
+			'current'       => (string) ( $state['current'] ?? __( 'No automatic sync running.', 'progress-agentic-rag-connector' ) ),
+			'message'       => (string) ( $state['message'] ?? __( 'No automatic sync running.', 'progress-agentic-rag-connector' ) ),
 			'percent'       => $percent,
 			'is_active'     => 'running' === ( $state['status'] ?? '' ) || $pending > 0 || $running > 0,
 		];
@@ -436,15 +436,15 @@ final class ManualSync {
 		}
 
 		if ( 'running' === ( $this->state()['status'] ?? '' ) ) {
-			return new WP_Error( 'progress_agentic_rag_manual_sync_running', __( 'Wait for manual sync to finish before deleting synced resources.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_manual_sync_running', __( 'Wait for manual sync to finish before deleting synced resources.', 'progress-agentic-rag-connector' ) );
 		}
 
 		if ( ! $this->scheduler_available() ) {
-			return new WP_Error( 'progress_agentic_rag_scheduler_missing', __( 'Background scheduling is not available.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_scheduler_missing', __( 'Background scheduling is not available.', 'progress-agentic-rag-connector' ) );
 		}
 
 		if ( ! $this->settings->get_api_is_reachable() ) {
-			return new WP_Error( 'progress_agentic_rag_connection_missing', __( 'Validate the Progress Agentic RAG connection before deleting synced resources.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_connection_missing', __( 'Validate the Progress Agentic RAG connection before deleting synced resources.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$this->cancel_label_reprocess();
@@ -459,10 +459,10 @@ final class ManualSync {
 			'total'      => $total,
 			'deleted'    => 0,
 			'failed'     => 0,
-			'current'    => 0 === $total ? __( 'No synced resources to delete.', 'progress-agentic-rag' ) : __( 'Waiting for the first resource.', 'progress-agentic-rag' ),
-			'message'    => 0 === $total ? __( 'No synced resources to delete. Label settings cleared.', 'progress-agentic-rag' ) : sprintf(
+			'current'    => 0 === $total ? __( 'No synced resources to delete.', 'progress-agentic-rag-connector' ) : __( 'Waiting for the first resource.', 'progress-agentic-rag-connector' ),
+			'message'    => 0 === $total ? __( 'No synced resources to delete. Label settings cleared.', 'progress-agentic-rag-connector' ) : sprintf(
 				/* translators: %d is the number of resources queued for deletion. */
-				_n( 'Delete in progress: 0 of %d processed.', 'Delete in progress: 0 of %d processed.', $total, 'progress-agentic-rag' ),
+				_n( 'Delete in progress: 0 of %d processed.', 'Delete in progress: 0 of %d processed.', $total, 'progress-agentic-rag-connector' ),
 				$total
 			),
 			'started_at' => time(),
@@ -478,7 +478,7 @@ final class ManualSync {
 			$rid     = isset( $resource->nuclia_rid ) ? (string) $resource->nuclia_rid : '';
 
 			if ( $post_id <= 0 || '' === $rid ) {
-				$this->mark_delete_failed( __( 'Missing synced resource.', 'progress-agentic-rag' ) );
+				$this->mark_delete_failed( __( 'Missing synced resource.', 'progress-agentic-rag-connector' ) );
 				continue;
 			}
 
@@ -526,26 +526,26 @@ final class ManualSync {
 		if ( $total > 0 && $done >= $total && 'running' === ( $state['status'] ?? '' ) ) {
 			$state['status']     = 'complete';
 			$state['message']    = 0 === (int) ( $state['failed'] ?? 0 )
-				? __( 'Synced resources deleted from Progress Agentic RAG. Local mappings and label settings cleared.', 'progress-agentic-rag' )
-				: __( 'Some synced resources could not be deleted. Label settings were cleared; local mappings were cleared only for successful deletions.', 'progress-agentic-rag' );
+				? __( 'Synced resources deleted from Progress Agentic RAG. Local mappings and label settings cleared.', 'progress-agentic-rag-connector' )
+				: __( 'Some synced resources could not be deleted. Label settings were cleared; local mappings were cleared only for successful deletions.', 'progress-agentic-rag-connector' );
 			$state['updated_at'] = time();
 			$state               = $this->record_history( $state, 'delete_synced', (int) ( $state['deleted'] ?? 0 ) );
 			update_option( SettingsRepository::OPTION_DELETE_SYNC_STATE, $state );
 		}
 
-		$current = (string) ( $state['current'] ?? __( 'Waiting to delete synced resources.', 'progress-agentic-rag' ) );
+		$current = (string) ( $state['current'] ?? __( 'Waiting to delete synced resources.', 'progress-agentic-rag-connector' ) );
 		$message = (string) ( $state['message'] ?? '' );
 
 		if ( 'running' === ( $state['status'] ?? '' ) ) {
 			$message = sprintf(
 				/* translators: 1: processed resource count, 2: total resource count. */
-				__( 'Delete in progress: %1$d of %2$d processed.', 'progress-agentic-rag' ),
+				__( 'Delete in progress: %1$d of %2$d processed.', 'progress-agentic-rag-connector' ),
 				$done,
 				$total
 			);
 
 			if ( '' === $current ) {
-				$current = 0 === $done ? __( 'Waiting for the first resource.', 'progress-agentic-rag' ) : __( 'Waiting for the next resource.', 'progress-agentic-rag' );
+				$current = 0 === $done ? __( 'Waiting for the first resource.', 'progress-agentic-rag-connector' ) : __( 'Waiting for the next resource.', 'progress-agentic-rag-connector' );
 			}
 		}
 
@@ -568,20 +568,20 @@ final class ManualSync {
 	 */
 	public function start_label_reprocess(): array|WP_Error {
 		if ( ! $this->scheduler_available() ) {
-			return new WP_Error( 'progress_agentic_rag_scheduler_missing', __( 'Background scheduling is not available.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_scheduler_missing', __( 'Background scheduling is not available.', 'progress-agentic-rag-connector' ) );
 		}
 
 		if ( ! $this->settings->get_api_is_reachable() ) {
-			return new WP_Error( 'progress_agentic_rag_connection_missing', __( 'Validate the Progress Agentic RAG connection before reprocessing labels.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_connection_missing', __( 'Validate the Progress Agentic RAG connection before reprocessing labels.', 'progress-agentic-rag-connector' ) );
 		}
 
 		if ( 'running' === ( $this->delete_state()['status'] ?? '' ) ) {
-			return new WP_Error( 'progress_agentic_rag_delete_running', __( 'Wait for synced resource deletion to finish before reprocessing labels.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_delete_running', __( 'Wait for synced resource deletion to finish before reprocessing labels.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$status = $this->label_reprocess_status();
 		if ( ! empty( $status['is_active'] ) ) {
-			return new WP_Error( 'progress_agentic_rag_label_reprocess_running', __( 'Label reprocessing is already running.', 'progress-agentic-rag' ) );
+			return new WP_Error( 'progress_agentic_rag_label_reprocess_running', __( 'Label reprocessing is already running.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$resources    = $this->api_client->get_synced_resources();
@@ -614,7 +614,7 @@ final class ManualSync {
 		$status['scheduled'] = $scheduled;
 		$status['message']   = sprintf(
 			/* translators: %d is the number of resources scheduled for label reprocessing. */
-			_n( 'Scheduled label update for %d synced resource.', 'Scheduled label updates for %d synced resources.', $scheduled, 'progress-agentic-rag' ),
+			_n( 'Scheduled label update for %d synced resource.', 'Scheduled label updates for %d synced resources.', $scheduled, 'progress-agentic-rag-connector' ),
 			$scheduled
 		);
 		$this->settings->add_sync_history_entry(
@@ -639,7 +639,7 @@ final class ManualSync {
 		$this->scheduler->unschedule_all_actions( self::HOOK_REPROCESS_LABELS, null, self::GROUP_LABEL_REPROCESSOR );
 
 		$status            = $this->label_reprocess_status();
-		$status['message'] = __( 'Label reprocessing cancelled.', 'progress-agentic-rag' );
+		$status['message'] = __( 'Label reprocessing cancelled.', 'progress-agentic-rag-connector' );
 		$this->settings->add_sync_history_entry(
 			[
 				'type'        => 'label_reprocess',
@@ -705,7 +705,7 @@ final class ManualSync {
 
 		$post = get_post( $post_id );
 		if ( ! $post instanceof WP_Post ) {
-			$this->mark_failed( __( 'Missing entity.', 'progress-agentic-rag' ) );
+			$this->mark_failed( __( 'Missing entity.', 'progress-agentic-rag-connector' ) );
 			return;
 		}
 
@@ -765,13 +765,13 @@ final class ManualSync {
 		$post  = get_post( $post_id );
 		$label = $post instanceof WP_Post ? $this->entity_label( $post ) : sprintf(
 			/* translators: %d is the WordPress post ID for a synced resource being deleted. */
-			__( 'Synced resource for entity #%d', 'progress-agentic-rag' ),
+			__( 'Synced resource for entity #%d', 'progress-agentic-rag-connector' ),
 			$post_id
 		);
 		$this->update_delete_current( $label );
 
 		if ( $post_id <= 0 || '' === $rid ) {
-			$this->mark_delete_failed( __( 'Missing synced resource.', 'progress-agentic-rag' ) );
+			$this->mark_delete_failed( __( 'Missing synced resource.', 'progress-agentic-rag-connector' ) );
 			return;
 		}
 
@@ -863,7 +863,7 @@ final class ManualSync {
 
 	public function process_background_post( int $post_id, string $post_type, string $background_id = '' ): void {
 		if ( ! $this->settings->get_api_is_reachable() ) {
-			$this->mark_background_failed( __( 'Progress Agentic RAG connection is not validated.', 'progress-agentic-rag' ), $background_id );
+			$this->mark_background_failed( __( 'Progress Agentic RAG connection is not validated.', 'progress-agentic-rag-connector' ), $background_id );
 			throw new \RuntimeException( 'Progress Agentic RAG connection is not validated.' );
 		}
 
@@ -910,7 +910,7 @@ final class ManualSync {
 		}
 
 		if ( ! $this->settings->get_api_is_reachable() ) {
-			$this->mark_background_failed( __( 'Progress Agentic RAG connection is not validated.', 'progress-agentic-rag' ), $background_id );
+			$this->mark_background_failed( __( 'Progress Agentic RAG connection is not validated.', 'progress-agentic-rag-connector' ), $background_id );
 			throw new \RuntimeException( 'Progress Agentic RAG connection is not validated.' );
 		}
 
@@ -991,7 +991,7 @@ final class ManualSync {
 			$post  = get_post( $post_id );
 			$label = $post instanceof WP_Post ? $this->entity_label( $post ) : sprintf(
 				/* translators: %d is the WordPress post ID for an entity being automatically synced. */
-				__( 'Entity #%d', 'progress-agentic-rag' ),
+				__( 'Entity #%d', 'progress-agentic-rag-connector' ),
 				$post_id
 			);
 			$background_id = $this->queue_background_sync( $label );
@@ -1196,7 +1196,7 @@ final class ManualSync {
 		if ( '' === $title ) {
 			$title = sprintf(
 				/* translators: %d is the WordPress post ID for an entity with no title. */
-				__( 'Entity #%d', 'progress-agentic-rag' ),
+				__( 'Entity #%d', 'progress-agentic-rag-connector' ),
 				(int) $post->ID
 			);
 		}
@@ -1265,7 +1265,7 @@ final class ManualSync {
 				'completed'  => 0,
 				'failed'     => 0,
 				'current'    => $current,
-				'message'    => __( 'Automatic background sync queued.', 'progress-agentic-rag' ),
+				'message'    => __( 'Automatic background sync queued.', 'progress-agentic-rag-connector' ),
 				'started_at' => time(),
 				'updated_at' => time(),
 			];
