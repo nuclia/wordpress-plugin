@@ -45,9 +45,9 @@ final class Scheduler {
 	public function backend_label(): string {
 		switch ( $this->backend() ) {
 			case 'action_scheduler':
-				return __( 'Action Scheduler', 'progress-agentic-rag' );
+				return __( 'Action Scheduler', 'progress-agentic-rag-connector' );
 			default:
-				return __( 'Unavailable', 'progress-agentic-rag' );
+				return __( 'Unavailable', 'progress-agentic-rag-connector' );
 		}
 	}
 
@@ -59,9 +59,9 @@ final class Scheduler {
 	public function backend_message(): string {
 		switch ( $this->backend() ) {
 			case 'action_scheduler':
-				return __( 'Background jobs are using Action Scheduler.', 'progress-agentic-rag' );
+				return __( 'Background jobs are using Action Scheduler.', 'progress-agentic-rag-connector' );
 			default:
-				return __( 'Background jobs are unavailable because Action Scheduler could not be loaded.', 'progress-agentic-rag' );
+				return __( 'Background jobs are unavailable because Action Scheduler could not be loaded.', 'progress-agentic-rag-connector' );
 		}
 	}
 

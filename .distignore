@@ -1,11 +1,15 @@
 /docker
 /tests
 /node_modules
-/vendor
+/vendor/action-scheduler/README.md
+/vendor/action-scheduler/readme.txt
+/vendor/action-scheduler/changelog.txt
 /package.json
 /package-lock.json
 /phpunit.xml.dist
 /playwright.config.ts
+/README.md
+/.DS_Store
 /.phpunit.result.cache
 /test-results
 /playwright-report

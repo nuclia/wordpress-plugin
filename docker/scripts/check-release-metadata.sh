@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-release_dir="${RELEASE_DIR:-build/progress-agentic-rag}"
+release_dir="${RELEASE_DIR:-build/progress-agentic-rag-connector}"
 expected_version="${RELEASE_VERSION:-}"
 main_file="$release_dir/progress-agentic-rag.php"
 readme_file="$release_dir/readme.txt"
@@ -26,8 +26,8 @@ if [ ! -d "$release_dir" ]; then
 fi
 
 if [ ! -f "$main_file" ]; then
-	if [ -f "$release_dir/progress-agentic-rag/progress-agentic-rag.php" ]; then
-		fail "Release artifact is nested under progress-agentic-rag; WordPress.org trunk must contain plugin files directly."
+	if [ -f "$release_dir/progress-agentic-rag-connector/progress-agentic-rag.php" ]; then
+		fail "Release artifact is nested under progress-agentic-rag-connector; WordPress.org trunk must contain plugin files directly."
 	fi
 
 	fail "Main plugin file not found in release root: $main_file"
@@ -40,6 +40,8 @@ fi
 plugin_header_version="$(awk -F 'Version:[[:space:]]*' '/^[[:space:]]*\*[[:space:]]Version:/ { print $2; exit }' "$main_file" | tr -d '\r' | trim)"
 constant_version="$(awk -F "'" '/PROGRESS_AGENTIC_RAG_VERSION/ { print $4; exit }' "$main_file" | tr -d '\r' | trim)"
 stable_tag="$(awk -F 'Stable tag:[[:space:]]*' '/^Stable tag:/ { print $2; exit }' "$readme_file" | tr -d '\r' | trim)"
+text_domain="$(awk -F 'Text Domain:[[:space:]]*' '/^[[:space:]]*\*[[:space:]]Text Domain:/ { print $2; exit }' "$main_file" | tr -d '\r' | trim)"
+expected_text_domain="${RELEASE_TEXT_DOMAIN:-progress-agentic-rag-connector}"
 
 if [ -z "$plugin_header_version" ]; then
 	fail "Plugin header Version is missing."
@@ -51,6 +53,10 @@ fi
 
 if [ -z "$stable_tag" ]; then
 	fail "readme.txt Stable tag is missing."
+fi
+
+if [ "$text_domain" != "$expected_text_domain" ]; then
+	fail "Plugin header Text Domain ($text_domain) does not match the WordPress.org slug ($expected_text_domain)."
 fi
 
 if [ -z "$expected_version" ]; then

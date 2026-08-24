@@ -1,4 +1,4 @@
-=== Progress Agentic RAG Connector ===
+=== Progress Agentic RAG connector ===
 Contributors: progresssoftware
 Tags: search, ai, knowledge-base, rag, indexing
 Requires at least: 6.8
@@ -14,7 +14,7 @@ Index WordPress content into Progress Agentic RAG and power knowledge-base searc
 
 Progress Agentic RAG connector connects WordPress content to the Progress Agentic RAG service so site owners can build searchable knowledge bases from selected public content.
 
-This rebuild is being developed with WordPress.org compatibility, server-side credential handling, background indexing, and automated test coverage as release requirements.
+The plugin keeps service credentials server-side, indexes selected content in the background, and provides WordPress-native administration and search integration.
 
 When the service connection is configured and validated, the plugin embeds the Progress Agentic RAG search widget on the WordPress front page. Widget requests are proxied through WordPress so the Service Access token stays on the server.
 
@@ -31,7 +31,7 @@ Service details:
 
 == Installation ==
 
-1. Upload the plugin files to the `/wp-content/plugins/progress-agentic-rag` directory, or install the plugin through WordPress.
+1. Upload the plugin files to the `/wp-content/plugins/progress-agentic-rag-connector` directory, or install the plugin through WordPress.
 2. Activate the plugin through the Plugins screen.
 3. Configure Progress Agentic RAG from the Progress Agentic RAG admin menu.
 
@@ -39,10 +39,10 @@ Service details:
 
 = Does the plugin expose the service token to visitors? =
 
-No. The production implementation must keep service credentials server-side and use server-side proxy requests where public access is needed.
+No. Service credentials stay server-side, and public widget requests use the server-side proxy.
 
 == Changelog ==
 
 = 1.0.0 =
 
-* Initial rebuild skeleton.
+* Initial release.

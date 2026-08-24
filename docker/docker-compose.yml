@@ -33,7 +33,7 @@ services:
     image: php:8.1-cli
     working_dir: /plugin
     environment:
-      RELEASE_DIR: ${RELEASE_DIR:-build/progress-agentic-rag}
+      RELEASE_DIR: ${RELEASE_DIR:-build/progress-agentic-rag-connector}
       RELEASE_VERSION: ${RELEASE_VERSION:-}
     volumes:
       - ..:/plugin

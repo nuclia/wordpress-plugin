@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 ?>
-<nav class="progress-agentic-rag__tabs" aria-label="<?php esc_attr_e( 'Progress Agentic RAG sections', 'progress-agentic-rag' ); ?>">
+<nav class="progress-agentic-rag__tabs" aria-label="<?php esc_attr_e( 'Progress Agentic RAG sections', 'progress-agentic-rag-connector' ); ?>">
 	<?php foreach ( $tabs as $tab ) : ?>
 		<a
 			class="progress-agentic-rag__tab <?php echo $tab['key'] === $active_tab ? 'progress-agentic-rag__tab--active' : ''; ?>"

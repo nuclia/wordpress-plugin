@@ -112,11 +112,11 @@ final class ProxyController {
 	private function execute( string $zone, string $path, string $method, string $query_string, string $content_type, string $accept, string $body, array $passthrough_headers ): array {
 		$zone = strtolower( trim( $zone ) );
 		if ( '' === $zone || ! preg_match( '/^[a-z0-9-]+$/', $zone ) ) {
-			return $this->error( 400, 'progress_agentic_rag_proxy_invalid_zone', __( 'Invalid Progress Agentic RAG zone.', 'progress-agentic-rag' ) );
+			return $this->error( 400, 'progress_agentic_rag_proxy_invalid_zone', __( 'Invalid Progress Agentic RAG zone.', 'progress-agentic-rag-connector' ) );
 		}
 
 		if ( ! in_array( $method, [ 'GET', 'POST', 'OPTIONS' ], true ) ) {
-			return $this->error( 405, 'progress_agentic_rag_proxy_method_not_allowed', __( 'Request method is not allowed.', 'progress-agentic-rag' ) );
+			return $this->error( 405, 'progress_agentic_rag_proxy_method_not_allowed', __( 'Request method is not allowed.', 'progress-agentic-rag-connector' ) );
 		}
 
 		if ( 'OPTIONS' === $method ) {
@@ -125,12 +125,12 @@ final class ProxyController {
 
 		$token = $this->settings->get_string( SettingsRepository::OPTION_TOKEN );
 		if ( '' === $token ) {
-			return $this->error( 500, 'progress_agentic_rag_proxy_missing_token', __( 'Progress Agentic RAG Service token is not configured.', 'progress-agentic-rag' ) );
+			return $this->error( 500, 'progress_agentic_rag_proxy_missing_token', __( 'Progress Agentic RAG Service token is not configured.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$normalized_path = $this->normalize_path( $path );
 		if ( null === $normalized_path ) {
-			return $this->error( 400, 'progress_agentic_rag_proxy_invalid_path', __( 'Invalid Progress Agentic RAG proxy path.', 'progress-agentic-rag' ) );
+			return $this->error( 400, 'progress_agentic_rag_proxy_invalid_path', __( 'Invalid Progress Agentic RAG proxy path.', 'progress-agentic-rag-connector' ) );
 		}
 
 		$remote_url = sprintf(
