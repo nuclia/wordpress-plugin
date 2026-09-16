@@ -10,6 +10,7 @@ namespace ProgressAgenticRag;
 use ProgressAgenticRag\Api\ApiClient;
 use ProgressAgenticRag\Admin\AdminPage;
 use ProgressAgenticRag\Frontend\SearchWidget;
+use ProgressAgenticRag\Indexing\AcfAdapter;
 use ProgressAgenticRag\Indexing\ManualSync;
 use ProgressAgenticRag\Indexing\Scheduler;
 use ProgressAgenticRag\Proxy\ProxyController;
@@ -32,7 +33,7 @@ final class Plugin {
 
 	private function __construct() {
 		$this->settings         = new SettingsRepository();
-		$api_client             = new ApiClient( $this->settings );
+		$api_client             = new ApiClient( $this->settings, new AcfAdapter() );
 		$scheduler              = new Scheduler();
 		$this->manual_sync      = new ManualSync( $this->settings, $api_client, $scheduler );
 		$this->admin_page       = new AdminPage( $this->settings, $this->manual_sync, $api_client );

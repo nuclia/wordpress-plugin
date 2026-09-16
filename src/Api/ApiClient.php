@@ -7,6 +7,8 @@
 
 namespace ProgressAgenticRag\Api;
 
+use ProgressAgenticRag\Indexing\AcfAdapter;
+use ProgressAgenticRag\Indexing\MetadataAdapterInterface;
 use ProgressAgenticRag\Settings\SettingsRepository;
 use WP_Error;
 use WP_Post;
@@ -14,7 +16,10 @@ use WP_Post;
 defined( 'ABSPATH' ) || exit;
 
 final class ApiClient {
-	public function __construct( private readonly SettingsRepository $settings ) {
+	public function __construct(
+		private readonly SettingsRepository $settings,
+		private readonly MetadataAdapterInterface $acf_adapter = new AcfAdapter()
+	) {
 	}
 
 	public function index_post( WP_Post $post ): bool|WP_Error {
@@ -571,6 +576,14 @@ final class ApiClient {
 				'format' => 'HTML',
 			],
 		];
+
+		$metadata_text = $this->acf_adapter->extract_text( $post );
+		if ( '' !== $metadata_text ) {
+			$body['texts']['text-2'] = [
+				'body'   => $metadata_text,
+				'format' => 'PLAIN',
+			];
+		}
 
 		return $body;
 	}
