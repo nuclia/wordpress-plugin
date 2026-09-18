@@ -168,9 +168,76 @@ final class FrontendProxyTest extends TestCase {
 		self::assertSame( '{"query":"example"}', $request['args']['body'] );
 		self::assertSame( '207', $result['headers']['X-Nuclia-Upstream-Status'] );
 		self::assertSame( 'application/json', $result['headers']['X-Nuclia-Upstream-Content-Type'] );
+		self::assertSame( 'application/json', $result['headers']['Content-Type'] );
+		self::assertSame( 'nosniff', $result['headers']['X-Content-Type-Options'] );
 		self::assertSame( 'https://europe-1.rag.progress.cloud/api/v1/search?eph-token=REDACTED&foo=bar', $result['headers']['X-Nuclia-Upstream-URL'] );
 		self::assertArrayNotHasKey( 'content-encoding', $result['headers'] );
 		self::assertSame( 'trace-1, trace-2', $result['headers']['X-NUCLIA-TRACE-ID'] );
+	}
+
+	public function test_proxy_coerces_unsafe_upstream_content_types(): void {
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 200,
+			],
+			'headers'  => [
+				'Content-Type' => 'text/html; charset=utf-8',
+			],
+			'body'     => '<script>alert(1)</script>',
+		];
+
+		$result = $this->execute_proxy( 'europe-1', 'v1/search' );
+
+		self::assertSame( 'text/html; charset=utf-8', $result['headers']['X-Nuclia-Upstream-Content-Type'] );
+		self::assertSame( 'application/octet-stream', $result['headers']['Content-Type'] );
+		self::assertSame( 'nosniff', $result['headers']['X-Content-Type-Options'] );
+
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 200,
+			],
+			'headers'  => [
+				'Content-Type' => 'image/svg+xml',
+			],
+			'body'     => '<svg onload="alert(1)"></svg>',
+		];
+
+		$svg_result = $this->execute_proxy( 'europe-1', 'v1/search' );
+
+		self::assertSame( 'application/octet-stream', $svg_result['headers']['Content-Type'] );
+	}
+
+	public function test_proxy_does_not_coerce_content_type_for_attachment_downloads(): void {
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 200,
+			],
+			'headers'  => [
+				'Content-Type'        => 'image/svg+xml',
+				'Content-Disposition' => 'attachment; filename="logo.svg"',
+			],
+			'body'     => '<svg onload="alert(1)"></svg>',
+		];
+
+		$result = $this->execute_proxy( 'europe-1', 'v1/search' );
+
+		self::assertSame( 'image/svg+xml', $result['headers']['Content-Type'] );
+		self::assertSame( 'nosniff', $result['headers']['X-Content-Type-Options'] );
+
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 200,
+			],
+			'headers'  => [
+				'Content-Type'        => 'image/svg+xml',
+				'Content-Disposition' => 'inline; filename="logo.svg"',
+			],
+			'body'     => '<svg onload="alert(1)"></svg>',
+		];
+
+		$inline_result = $this->execute_proxy( 'europe-1', 'v1/search' );
+
+		self::assertSame( 'application/octet-stream', $inline_result['headers']['Content-Type'] );
 	}
 
 	public function test_proxy_execute_validates_zone_method_token_and_path(): void {
@@ -182,6 +249,34 @@ final class FrontendProxyTest extends TestCase {
 		update_option( SettingsRepository::OPTION_TOKEN, '' );
 
 		self::assertSame( 500, $this->execute_proxy( 'europe-1', 'v1/search' )['status'] );
+	}
+
+	public function test_proxy_normalize_path_rejects_disallowed_characters_and_overlong_paths(): void {
+		self::assertSame( 400, $this->execute_proxy( 'europe-1', "v1/search\x00" )['status'] );
+		self::assertSame( 400, $this->execute_proxy( 'europe-1', 'v1/se arch' )['status'] );
+		self::assertSame( 400, $this->execute_proxy( 'europe-1', 'v1/<script>' )['status'] );
+		self::assertSame( 400, $this->execute_proxy( 'europe-1', str_repeat( 'a', 2049 ) )['status'] );
+	}
+
+	public function test_proxy_normalize_path_allows_colon_in_slugs_and_field_ids(): void {
+		self::assertNotSame( 400, $this->execute_proxy( 'europe-1', 'v1/kb/test/slug/doc:123/find' )['status'] );
+	}
+
+	public function test_proxy_normalize_path_rejects_encoded_crlf_and_dot_segments(): void {
+		self::assertSame( 400, $this->execute_proxy( 'europe-1', 'v1/kb/test/%0a/find' )['status'] );
+		self::assertSame( 400, $this->execute_proxy( 'europe-1', 'v1/kb/test/%0d%0a/find' )['status'] );
+		self::assertSame( 400, $this->execute_proxy( 'europe-1', '%2e%2e/secret' )['status'] );
+		self::assertSame( 400, $this->execute_proxy( 'europe-1', 'v1%5c..%5csecret' )['status'] );
+	}
+
+	public function test_proxy_query_string_drops_disallowed_characters_and_overlong_strings(): void {
+		$_SERVER['QUERY_STRING'] = 'foo=bar&bad=<script>&ok=1';
+
+		self::assertSame( 'foo=bar&ok=1', $this->client_query_string_cleaned() );
+
+		$_SERVER['QUERY_STRING'] = str_repeat( 'a=1&', 1000 );
+
+		self::assertSame( '', $this->client_query_string_cleaned() );
 	}
 
 	public function test_proxy_path_request_supports_query_vars_and_request_uri(): void {
@@ -226,6 +321,13 @@ final class FrontendProxyTest extends TestCase {
 			],
 			$this->passthrough_headers()
 		);
+	}
+
+	public function test_proxy_cors_allows_site_origin_and_rejects_others_by_default(): void {
+		self::assertTrue( $this->is_allowed_origin( 'https://example.test' ) );
+		self::assertTrue( $this->is_allowed_origin( 'HTTPS://EXAMPLE.TEST' ) );
+		self::assertFalse( $this->is_allowed_origin( 'https://evil.example' ) );
+		self::assertFalse( $this->is_allowed_origin( 'https://example.test.evil.example' ) );
 	}
 
 	public function test_proxy_helpers_cover_canonical_upstream_and_normalized_paths(): void {
@@ -320,5 +422,13 @@ final class FrontendProxyTest extends TestCase {
 		$method_ref->setAccessible( true );
 
 		return $method_ref->invoke( $controller );
+	}
+
+	private function is_allowed_origin( string $origin ): bool {
+		$controller = new ProxyController( new SettingsRepository() );
+		$method_ref = new ReflectionMethod( $controller, 'is_allowed_origin' );
+		$method_ref->setAccessible( true );
+
+		return $method_ref->invoke( $controller, $origin );
 	}
 }

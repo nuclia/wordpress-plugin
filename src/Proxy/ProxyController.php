@@ -12,10 +12,13 @@ use ProgressAgenticRag\Settings\SettingsRepository;
 defined( 'ABSPATH' ) || exit;
 
 final class ProxyController {
-	private const QUERY_VAR_ENABLED      = 'progress_agentic_rag_proxy';
-	private const QUERY_VAR_ZONE         = 'progress_agentic_rag_proxy_zone';
-	private const QUERY_VAR_PATH         = 'progress_agentic_rag_proxy_path';
-	private const OPTION_REWRITE_VERSION = 'progress_agentic_rag_proxy_rewrite_version';
+	private const QUERY_VAR_ENABLED       = 'progress_agentic_rag_proxy';
+	private const QUERY_VAR_ZONE          = 'progress_agentic_rag_proxy_zone';
+	private const QUERY_VAR_PATH          = 'progress_agentic_rag_proxy_path';
+	private const OPTION_REWRITE_VERSION  = 'progress_agentic_rag_proxy_rewrite_version';
+	private const MAX_PATH_LENGTH         = 2048;
+	private const MAX_QUERY_STRING_LENGTH = 2048;
+	private const MAX_BODY_BYTES          = 5242880; // 5 MB default; filterable via progress_agentic_rag_proxy_max_body_bytes.
 
 	public function __construct( private readonly SettingsRepository $settings ) {
 	}
@@ -82,27 +85,59 @@ final class ProxyController {
 
 		$this->send_cors_headers();
 
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Must stay raw: sanitize_text_field() strips the %XX octets this check looks for. Only inspected, never output or forwarded.
+		$raw_path = (string) wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '', PHP_URL_PATH );
+		if ( self::has_unsafe_path_bytes( $raw_path ) || self::has_unsafe_path_bytes( rawurldecode( $raw_path ) ) ) {
+			$this->respond( $this->error( 400, 'progress_agentic_rag_proxy_invalid_path', __( 'Invalid Progress Agentic RAG proxy path.', 'progress-agentic-rag-connector' ) ) );
+		}
+
 		$method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( (string) wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
-		$body   = ( 'GET' !== $method && 'HEAD' !== $method ) ? (string) file_get_contents( 'php://input' ) : '';
+		$body   = ( 'GET' !== $method && 'HEAD' !== $method ) ? $this->read_request_body() : '';
 
-		$result = $this->execute(
-			$request['zone'],
-			$request['path'],
-			$method,
-			$this->client_query_string(),
-			isset( $_SERVER['CONTENT_TYPE'] ) ? sanitize_text_field( (string) wp_unslash( $_SERVER['CONTENT_TYPE'] ) ) : '',
-			isset( $_SERVER['HTTP_ACCEPT'] ) ? sanitize_text_field( (string) wp_unslash( $_SERVER['HTTP_ACCEPT'] ) ) : '',
-			$body,
-			$this->passthrough_headers()
+		if ( null === $body ) {
+			$this->respond( $this->error( 413, 'progress_agentic_rag_proxy_payload_too_large', __( 'Request body exceeds the maximum allowed size.', 'progress-agentic-rag-connector' ) ) );
+		}
+
+		$this->respond(
+			$this->execute(
+				$request['zone'],
+				$request['path'],
+				$method,
+				$this->client_query_string(),
+				isset( $_SERVER['CONTENT_TYPE'] ) ? sanitize_text_field( (string) wp_unslash( $_SERVER['CONTENT_TYPE'] ) ) : '',
+				isset( $_SERVER['HTTP_ACCEPT'] ) ? sanitize_text_field( (string) wp_unslash( $_SERVER['HTTP_ACCEPT'] ) ) : '',
+				$body,
+				$this->passthrough_headers()
+			)
 		);
+	}
 
+	private function respond( array $result ): void {
 		status_header( $result['status'] );
 		foreach ( $result['headers'] as $name => $value ) {
 			header( (string) $name . ': ' . (string) $value, false );
 		}
-
 		echo $result['body']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		exit;
+	}
+
+	private static function has_unsafe_path_bytes( string $value ): bool {
+		return 1 === preg_match( '/[\x00-\x1F\x7F]/', $value )
+			|| str_contains( $value, '..' )
+			|| str_contains( $value, '\\' );
+	}
+
+
+	/** @return string|null Null if body exceeds max_body_bytes() (reads +1 byte to detect overflow). */
+	private function read_request_body(): ?string {
+		$max_bytes = $this->max_body_bytes();
+		$body      = (string) file_get_contents( 'php://input', false, null, 0, $max_bytes + 1 );
+
+		return strlen( $body ) > $max_bytes ? null : $body;
+	}
+
+	private function max_body_bytes(): int {
+		return (int) apply_filters( 'progress_agentic_rag_proxy_max_body_bytes', self::MAX_BODY_BYTES );
 	}
 
 	/**
@@ -196,8 +231,7 @@ final class ProxyController {
 			}
 		}
 
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Raw URI is parsed, validated, and normalized before use.
-			$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
 		$request_path = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
 		$home_path = trim( (string) wp_parse_url( home_url( '/' ), PHP_URL_PATH ), '/' );
 		if ( '' !== $home_path && str_starts_with( $request_path, '/' . $home_path . '/' ) ) {
@@ -222,19 +256,18 @@ final class ProxyController {
 
 	private function normalize_path( string $path ): ?string {
 		$path = ltrim( $path, '/' );
-		$decoded_path = rawurldecode( $path );
 
 		if (
 			'' === $path
-			|| str_contains( $path, '..' )
-			|| str_contains( $decoded_path, '..' )
-			|| str_contains( $path, '\\' )
-			|| str_contains( $decoded_path, '\\' )
-			|| str_contains( $path, "\r" )
-			|| str_contains( $decoded_path, "\r" )
-			|| str_contains( $path, "\n" )
-			|| str_contains( $decoded_path, "\n" )
+			|| strlen( $path ) > self::MAX_PATH_LENGTH
+			// Narrower than RFC 3986: unreserved chars + "/" (segments) + "%" (percent-encoding) + ":" (valid in Nuclia slugs/field ids) only.
+			// Other sub-delims aren't needed for simple REST path segments/ids, so they're excluded here.
+			|| 1 !== preg_match( '/^[A-Za-z0-9\-._~%:\/]+$/', $path )
 		) {
+			return null;
+		}
+
+		if ( self::has_unsafe_path_bytes( $path ) || self::has_unsafe_path_bytes( rawurldecode( $path ) ) ) {
 			return null;
 		}
 
@@ -250,12 +283,11 @@ final class ProxyController {
 	}
 
 	private function client_query_string(): string {
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Raw query string is allow-list cleaned before proxying.
-			$query_string = isset( $_SERVER['QUERY_STRING'] ) ? (string) wp_unslash( $_SERVER['QUERY_STRING'] ) : '';
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- allow-list validated in clean_query_string() before proxying.
+		$query_string = isset( $_SERVER['QUERY_STRING'] ) ? (string) wp_unslash( $_SERVER['QUERY_STRING'] ) : '';
 
-			if ( '' === $query_string && isset( $_SERVER['REQUEST_URI'] ) ) {
-				// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Raw URI is parsed and the query is allow-list cleaned before proxying.
-				$parsed = wp_parse_url( (string) wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_QUERY );
+		if ( '' === $query_string && isset( $_SERVER['REQUEST_URI'] ) ) {
+			$parsed       = wp_parse_url( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ), PHP_URL_QUERY );
 			$query_string = is_string( $parsed ) ? $parsed : '';
 		}
 
@@ -263,7 +295,7 @@ final class ProxyController {
 	}
 
 	private function clean_query_string( string $query_string ): string {
-		if ( '' === $query_string ) {
+		if ( '' === $query_string || strlen( $query_string ) > self::MAX_QUERY_STRING_LENGTH ) {
 			return '';
 		}
 
@@ -276,8 +308,13 @@ final class ProxyController {
 		$parts = [];
 
 		foreach ( explode( '&', $query_string ) as $part ) {
+			// Allow-list is RFC 3986's "query" grammar (unreserved + sub-delims + : @ / ?), minus "&" since that's already the split delimiter above.
+			if ( '' === $part || 1 !== preg_match( '/^[A-Za-z0-9\-._~%!$\'()*+,;:@=\/?]*$/', $part ) ) {
+				continue;
+			}
+
 			$key = rawurldecode( explode( '=', $part, 2 )[0] ?? '' );
-			if ( '' !== $part && ! in_array( $key, $strip_keys, true ) ) {
+			if ( ! in_array( $key, $strip_keys, true ) ) {
 				$parts[] = $part;
 			}
 		}
@@ -317,16 +354,70 @@ final class ProxyController {
 		}
 
 		$origin = isset( $_SERVER['HTTP_ORIGIN'] ) ? sanitize_text_field( (string) wp_unslash( $_SERVER['HTTP_ORIGIN'] ) ) : '';
-		header( 'Access-Control-Allow-Origin: ' . ( '' !== $origin ? $origin : '*' ) );
+
+		if ( '' !== $origin && $this->is_allowed_origin( $origin ) ) {
+			header( 'Access-Control-Allow-Origin: ' . $origin );
+		}
+
+		header( 'Vary: Origin', false );
+
 		header( 'Access-Control-Allow-Methods: GET, POST, OPTIONS' );
 		header( 'Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, x-synchronous, X-Synchronous, x-ndb-client, X-NDB-Client, Range, If-Range' );
 		header( 'Access-Control-Expose-Headers: X-Nuclia-Upstream-Status, X-Nuclia-Upstream-Content-Type, X-Nuclia-Upstream-URL, Nuclia-Learning-Id, X-NUCLIA-TRACE-ID' );
-		header( 'Vary: Origin', false );
+	}
+
+	private function is_allowed_origin( string $origin ): bool {
+		$site_origin = $this->site_origin();
+
+		/**
+		 * Filters the list of origins allowed to receive CORS access to the proxy.
+		 *
+		 * @param string[] $allowed_origins Allowed origins. Defaults to the site's own origin.
+		 * @param string   $origin          The requesting Origin header value.
+		 */
+		$allowed_origins = (array) apply_filters( 'progress_agentic_rag_proxy_allowed_origins', [ $site_origin ], $origin );
+
+		foreach ( $allowed_origins as $allowed_origin ) {
+			if ( is_string( $allowed_origin ) && 0 === strcasecmp( $allowed_origin, $origin ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** Uses home_url(), not $_SERVER, so a spoofed Host header can't widen the allowed origin. */
+	private function site_origin(): string {
+		$home   = home_url( '/' );
+		$scheme = (string) wp_parse_url( $home, PHP_URL_SCHEME );
+		$host   = (string) wp_parse_url( $home, PHP_URL_HOST );
+		$port   = wp_parse_url( $home, PHP_URL_PORT );
+
+		if ( '' === $scheme || '' === $host ) {
+			return '';
+		}
+
+		return $scheme . '://' . $host . ( null !== $port ? ':' . $port : '' );
 	}
 
 	private function is_ephemeral_request( string $query_string ): bool {
 		return (bool) preg_match( '/(^|&)eph-token=/i', $query_string );
 	}
+
+	// MIME types a browser will execute/render as an active document (HTML, JS, or
+	// XML/SVG which can embed scripts) instead of treating as inert data.
+	private const UNSAFE_CONTENT_TYPES = [
+		'text/html',
+		'application/xhtml+xml',
+		'image/svg+xml',
+		'text/xml',
+		'application/xml',
+		'text/javascript',
+		'application/javascript',
+		'application/x-javascript',
+		'application/ecmascript',
+		'text/ecmascript',
+	];
 
 	/**
 	 * @param array<string,mixed> $response Upstream response.
@@ -351,13 +442,52 @@ final class ProxyController {
 		}
 
 		$headers['X-Nuclia-Upstream-Status'] = (string) $status;
-		$content_type = $headers['Content-Type'] ?? $headers['content-type'] ?? '';
+
+		// Normalize Content-Type casing to one canonical key to avoid duplicate headers.
+		$content_type_key = null;
+		foreach ( array_keys( $headers ) as $name ) {
+			if ( 0 === strcasecmp( $name, 'Content-Type' ) ) {
+				$content_type_key = $name;
+				break;
+			}
+		}
+
+		$content_type = null !== $content_type_key ? $headers[ $content_type_key ] : '';
+		if ( null !== $content_type_key && 'Content-Type' !== $content_type_key ) {
+			unset( $headers[ $content_type_key ] );
+		}
+
 		if ( '' !== $content_type ) {
 			$headers['X-Nuclia-Upstream-Content-Type'] = $content_type;
+			$headers['Content-Type'] = ( ! $this->is_attachment_disposition( $headers ) && $this->is_unsafe_content_type( $content_type ) )
+				? 'application/octet-stream'
+				: $content_type;
 		}
+
+		// Belt-and-suspenders: block MIME-sniffing regardless of Content-Type above.
+		$headers['X-Content-Type-Options'] = 'nosniff';
+
 		$headers['X-Nuclia-Upstream-URL'] = substr( str_replace( [ "\r", "\n" ], '', (string) preg_replace( '/(?<=[?&])eph-token=[^&]*/i', 'eph-token=REDACTED', $remote_url ) ), 0, 2048 );
 
 		return $headers;
+	}
+
+	/** @param string $content_type May include a ";charset=..." suffix, stripped before comparison. */
+	private function is_unsafe_content_type( string $content_type ): bool {
+		$base_type = strtolower( trim( strtok( $content_type, ';' ) ?: $content_type ) );
+
+		return in_array( $base_type, self::UNSAFE_CONTENT_TYPES, true );
+	}
+
+	/** Attachment downloads are saved to disk, so their Content-Type can't execute regardless of value. */
+	private function is_attachment_disposition( array $headers ): bool {
+		foreach ( $headers as $name => $value ) {
+			if ( 0 === strcasecmp( $name, 'Content-Disposition' ) ) {
+				return 0 === stripos( trim( $value ), 'attachment' );
+			}
+		}
+
+		return false;
 	}
 
 	/**
