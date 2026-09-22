@@ -73,7 +73,7 @@ final class AcfAdapterTest extends TestCase {
 		$this->assertStringContainsString( 'Radio Button Field: choice 2', $text );
 		$this->assertStringContainsString( 'Button Group Field: choice 2', $text );
 		$this->assertStringContainsString( 'True/False Field: Yes', $text );
-		$this->assertStringContainsString( 'Date Picker Field: 2026-09-17', $text );
+		$this->assertStringContainsString( 'Date Picker Field: 20260917', $text );
 
 		// WYSIWYG must be stripped of HTML.
 		$this->assertStringContainsString( 'WYSIWYG Field: wys wyg content', $text );
@@ -176,6 +176,158 @@ final class AcfAdapterTest extends TestCase {
 		];
 
 		$this->assertSame( '', ( new AcfAdapter() )->extract_text( $this->post() ) );
+	}
+
+	/**
+	 * Post Object's default Return Format is a `WP_Post` object (Relationship
+	 * always returns an array of them) — distinct from the raw-ID format used
+	 * elsewhere in this file. Both share `post_reference_text()`.
+	 */
+	public function test_post_object_and_relationship_fields_accept_wp_post_objects(): void {
+		$public_post    = new WP_Post( [ 'ID' => 201, 'post_title' => 'Public Related Page', 'post_status' => 'publish' ] );
+		$protected_post = new WP_Post(
+			[
+				'ID'            => 301,
+				'post_title'    => 'Protected Page',
+				'post_status'   => 'publish',
+				'post_password' => 'secret',
+			]
+		);
+		$GLOBALS['progress_agentic_rag_test_posts'][201] = $public_post;
+		$GLOBALS['progress_agentic_rag_test_posts'][301] = $protected_post;
+
+		$GLOBALS['progress_agentic_rag_test_acf_fields'][ self::POST_ID ] = [
+			'related'      => [
+				'key'   => 'field_related',
+				'label' => 'Related',
+				'name'  => 'related',
+				'type'  => 'post_object',
+				'value' => $public_post,
+			],
+			'similar_pages' => [
+				'key'   => 'field_similar_pages',
+				'label' => 'Similar Pages',
+				'name'  => 'similar_pages',
+				'type'  => 'relationship',
+				'value' => [ $public_post, $protected_post ],
+			],
+		];
+
+		$text = ( new AcfAdapter() )->extract_text( $this->post() );
+
+		$this->assertStringContainsString( 'Related: Public Related Page', $text );
+		$this->assertStringContainsString( 'Similar Pages: Public Related Page', $text );
+		$this->assertStringNotContainsString( 'Protected Page', $text );
+	}
+
+	/**
+	 * Taxonomy's default Return Format is "Term Object" — an array of term
+	 * objects carrying `name` directly, distinct from the "Term ID" format
+	 * (raw IDs resolved via `get_term()`) exercised by the full-fixture test.
+	 */
+	public function test_taxonomy_field_accepts_term_objects_directly(): void {
+		$GLOBALS['progress_agentic_rag_test_acf_fields'][ self::POST_ID ] = [
+			'topics' => [
+				'key'      => 'field_topics',
+				'label'    => 'Topics',
+				'name'     => 'topics',
+				'type'     => 'taxonomy',
+				'taxonomy' => 'category',
+				'value'    => [
+					(object) [ 'term_id' => 3, 'name' => 'Eye Test' ],
+					(object) [ 'term_id' => 4, 'name' => 'Hearing Test' ],
+				],
+			],
+		];
+
+		$text = ( new AcfAdapter() )->extract_text( $this->post() );
+
+		$this->assertStringContainsString( 'Topics: Eye Test, Hearing Test', $text );
+	}
+
+	/**
+	 * Page Link returns a permalink URL string (or array of URLs for
+	 * multi-select), never a post ID or WP_Post — unlike Post
+	 * Object/Relationship. `url_to_postid()` resolves it before the
+	 * post-reference/security logic applies.
+	 */
+	public function test_page_link_field_resolves_url_to_referenced_post_title(): void {
+		$GLOBALS['progress_agentic_rag_test_posts'][201] = new WP_Post(
+			[
+				'ID'          => 201,
+				'post_title'  => 'Public Related Page',
+				'post_status' => 'publish',
+			]
+		);
+		$GLOBALS['progress_agentic_rag_test_posts'][301] = new WP_Post(
+			[
+				'ID'            => 301,
+				'post_title'    => 'Protected Page',
+				'post_status'   => 'publish',
+				'post_password' => 'secret',
+			]
+		);
+
+		$GLOBALS['progress_agentic_rag_test_acf_fields'][ self::POST_ID ] = [
+			'branch_page' => [
+				'key'   => 'field_branch_page',
+				'label' => 'Branch Page',
+				'name'  => 'branch_page',
+				'type'  => 'page_link',
+				// Page Link value: a permalink URL, not a post ID.
+				'value' => 'https://example.test/?p=201',
+			],
+		];
+
+		$text = ( new AcfAdapter() )->extract_text( $this->post() );
+
+		$this->assertStringContainsString( 'Branch Page: Public Related Page', $text );
+
+		// Multi-select Page Link returns an array of URL strings.
+		$GLOBALS['progress_agentic_rag_test_acf_fields'][ self::POST_ID ]['branch_page']['value'] = [
+			'https://example.test/?p=201',
+			'https://example.test/?p=301', // Password-protected — must be excluded.
+		];
+
+		$multi_text = ( new AcfAdapter() )->extract_text( $this->post() );
+
+		$this->assertStringContainsString( 'Branch Page: Public Related Page', $multi_text );
+		$this->assertStringNotContainsString( 'Protected Page', $multi_text );
+	}
+
+	/**
+	 * ACF exposes `layouts` as a sequential list of layout definitions (each
+	 * carrying its own `name`), not an associative array keyed by name.
+	 */
+	public function test_flexible_content_matches_layouts_by_name_not_array_key(): void {
+		$GLOBALS['progress_agentic_rag_test_acf_fields'][ self::POST_ID ] = [
+			'page_sections' => [
+				'key'     => 'field_page_sections',
+				'label'   => 'Page Sections',
+				'name'    => 'page_sections',
+				'type'    => 'flexible_content',
+				'layouts' => [
+					[
+						'key'        => 'layout_hero',
+						'label'      => 'Hero',
+						'name'       => 'hero',
+						'sub_fields' => [
+							[ 'key' => 'field_heading', 'label' => 'Heading', 'name' => 'heading', 'type' => 'text' ],
+						],
+					],
+				],
+				'value'   => [
+					[
+						'acf_fc_layout' => 'hero',
+						'heading'       => 'Welcome to our Exeter branch',
+					],
+				],
+			],
+		];
+
+		$text = ( new AcfAdapter() )->extract_text( $this->post() );
+
+		$this->assertStringContainsString( 'Hero: Heading - Welcome to our Exeter branch', $text );
 	}
 
 	public function test_empty_repeater_and_group_values_are_skipped(): void {

@@ -113,7 +113,8 @@ return [
 		'label' => 'Date Picker Field',
 		'name'  => 'date_picker_field',
 		'type'  => 'date_picker',
-		'value' => '2026-09-17',
+		// Default Return Format is "Ymd" (no separators), not a display format.
+		'value' => '20260917',
 	],
 	'date_time_picker_field' => [
 		'key'   => 'field_date_time_picker',
@@ -164,12 +165,15 @@ return [
 		'type'  => 'post_object',
 		'value' => 201,
 	],
+	// Page Link returns a URL string (or array of URLs for multi-select),
+	// never a post ID or WP_Post — unlike Post Object/Relationship.
+	// `url_to_postid()` resolves it to a post ID.
 	'page_link_field'        => [
 		'key'   => 'field_page_link',
 		'label' => 'Page Link Field',
 		'name'  => 'page_link_field',
 		'type'  => 'page_link',
-		'value' => 201,
+		'value' => 'https://example.test/?p=201',
 	],
 	'relationship_field'     => [
 		'key'   => 'field_relationship',
@@ -297,8 +301,9 @@ return [
 		'label'   => 'Page Sections',
 		'name'    => 'page_sections',
 		'type'    => 'flexible_content',
+		// `layouts` is a sequential list, not keyed by layout name.
 		'layouts' => [
-			'hero' => [
+			[
 				'key'        => 'layout_hero',
 				'label'      => 'Hero',
 				'name'       => 'hero',
@@ -307,7 +312,7 @@ return [
 					[ 'key' => 'field_subheading', 'label' => 'Subheading', 'name' => 'subheading', 'type' => 'text' ],
 				],
 			],
-			'cta'  => [
+			[
 				'key'        => 'layout_cta',
 				'label'      => 'CTA',
 				'name'       => 'cta',

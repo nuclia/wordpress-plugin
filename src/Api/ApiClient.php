@@ -577,13 +577,13 @@ final class ApiClient {
 			],
 		];
 
-		$metadata_text = $this->acf_adapter->extract_text( $post );
-		if ( '' !== $metadata_text ) {
-			$body['texts']['text-2'] = [
-				'body'   => $metadata_text,
-				'format' => 'PLAIN',
-			];
-		}
+		// text-2 is always sent, even empty: PATCH /resource/{rid} merges the
+		// "texts" dict by key, so an omitted key leaves prior content
+		// untouched rather than clearing it.
+		$body['texts']['text-2'] = [
+			'body'   => $this->acf_adapter->extract_text( $post ),
+			'format' => 'PLAIN',
+		];
 
 		return $body;
 	}

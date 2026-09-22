@@ -151,7 +151,7 @@ final class ApiClientTest extends TestCase {
 		self::assertStringNotContainsString( 'Secret Draft Page', $body['texts']['text-2']['body'] );
 	}
 
-	public function test_index_post_omits_text_2_when_no_acf_fields_present(): void {
+	public function test_index_post_sends_empty_text_2_when_no_acf_fields_present(): void {
 		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
 			'response' => [
 				'code' => 201,
@@ -175,7 +175,48 @@ final class ApiClientTest extends TestCase {
 		$request = $GLOBALS['progress_agentic_rag_test_http_requests'][0];
 		$body    = json_decode( $request['args']['body'], true );
 
-		self::assertArrayNotHasKey( 'text-2', $body['texts'] );
+		// text-2 is always sent, even empty — never omitted.
+		self::assertSame( '', $body['texts']['text-2']['body'] );
+		self::assertSame( 'PLAIN', $body['texts']['text-2']['format'] );
+	}
+
+	/**
+	 * Nuclia's PATCH /resource/{rid} merges the "texts" dict by key: an
+	 * omitted "text-2" key leaves prior content untouched rather than
+	 * clearing it, so a cleared-ACF post must still send an explicit empty
+	 * "text-2" body.
+	 */
+	public function test_sync_post_clears_stale_text_2_when_acf_fields_are_removed(): void {
+		// Post was previously synced (has an upstream rid) and now has no ACF
+		// field data — the fields were cleared since the last sync.
+		$GLOBALS['wpdb']->var                                     = 'rid-654';
+		$GLOBALS['progress_agentic_rag_test_acf_fields'][654]     = false;
+		$GLOBALS['progress_agentic_rag_test_http_responses'][]    = [
+			'response' => [
+				'code' => 200,
+			],
+			'body'     => '{"seqid":"seq-cleared"}',
+		];
+
+		$result = ( new ApiClient( new SettingsRepository(), new AcfAdapter() ) )->sync_post(
+			new WP_Post(
+				[
+					'ID'           => 654,
+					'post_title'   => 'Branch With Fields Removed',
+					'post_content' => '<p>Body</p>',
+				]
+			)
+		);
+
+		self::assertTrue( $result );
+
+		$request = $GLOBALS['progress_agentic_rag_test_http_requests'][0];
+		$body    = json_decode( $request['args']['body'], true );
+
+		self::assertSame( 'PATCH', $request['args']['method'] );
+		self::assertArrayHasKey( 'text-2', $body['texts'], 'text-2 must be explicitly sent (even empty) to clear stale upstream content.' );
+		self::assertSame( '', $body['texts']['text-2']['body'] );
+		self::assertSame( 'PLAIN', $body['texts']['text-2']['format'] );
 	}
 
 	public function test_update_resource_labels_sends_label_only_patch_body(): void {

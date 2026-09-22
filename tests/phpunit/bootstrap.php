@@ -556,6 +556,14 @@ if ( ! function_exists( 'get_permalink' ) ) {
 	}
 }
 
+if ( ! function_exists( 'url_to_postid' ) ) {
+	function url_to_postid( string $url ): int {
+		// Mirrors get_permalink()'s stub format above, and real WordPress's own
+		// fallback resolution of the default "?p=ID" permalink structure.
+		return preg_match( '/[?&]p=(\d+)/', $url, $matches ) ? (int) $matches[1] : 0;
+	}
+}
+
 if ( ! function_exists( 'apply_filters' ) ) {
 	function apply_filters( string $hook_name, mixed $value ): mixed {
 		return $value;

@@ -110,10 +110,27 @@ final class AcfAdapter implements MetadataAdapterInterface {
 	}
 
 	/**
+	 * ACF returns `layouts` as a plain sequential list, not keyed by name.
+	 * Re-keys it by each layout's `name` for lookup by `acf_fc_layout`.
+	 *
 	 * @return array<string, array<string, mixed>>
 	 */
 	private function layouts_of( array $field ): array {
-		return is_array( $field['layouts'] ?? null ) ? $field['layouts'] : [];
+		$layouts = is_array( $field['layouts'] ?? null ) ? $field['layouts'] : [];
+
+		$by_name = [];
+		foreach ( $layouts as $layout ) {
+			if ( ! is_array( $layout ) ) {
+				continue;
+			}
+
+			$name = (string) ( $layout['name'] ?? '' );
+			if ( '' !== $name ) {
+				$by_name[ $name ] = $layout;
+			}
+		}
+
+		return $by_name;
 	}
 
 	private function scalar_text( mixed $value ): ?string {
@@ -182,6 +199,16 @@ final class AcfAdapter implements MetadataAdapterInterface {
 
 			if ( is_numeric( $item ) ) {
 				$ids[] = (int) $item;
+				continue;
+			}
+
+			// Page Link returns a permalink URL string (or array of URLs for
+			// multi-select), not an ID/WP_Post — resolve it to a post ID.
+			if ( is_string( $item ) && '' !== trim( $item ) && function_exists( 'url_to_postid' ) ) {
+				$resolved_id = (int) url_to_postid( $item );
+				if ( $resolved_id > 0 ) {
+					$ids[] = $resolved_id;
+				}
 			}
 		}
 
