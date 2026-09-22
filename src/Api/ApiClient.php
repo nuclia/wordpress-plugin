@@ -253,6 +253,20 @@ final class ApiClient {
 	}
 
 	/**
+	 * Return cached labelsets only, without performing any upstream HTTP request.
+	 *
+	 * Use this in render paths that must not block (e.g. admin page boot).
+	 * `get_labelsets()` remains the source of truth for fresh data.
+	 *
+	 * @return list<string>
+	 */
+	public function get_labelsets_cached(): array {
+		$cache = $this->settings->get_labelsets_cache();
+
+		return is_array( $cache['labelsets'] ?? null ) ? array_values( $cache['labelsets'] ) : [];
+	}
+
+	/**
 	 * @return list<string>
 	 */
 	public function get_labelset_labels( string $labelset ): array {

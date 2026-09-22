@@ -97,8 +97,8 @@ final class AdminPage {
 				'nonce'                       => wp_create_nonce( 'progress_agentic_rag_manual_sync' ),
 				'initialSyncStatus'           => $this->manual_sync->status(),
 				'initialDeleteStatus'         => $this->manual_sync->delete_status(),
-					'initialBackgroundSyncStatus' => $this->manual_sync->ensure_automatic_sync(),
-					'mapping'                     => $this->mapping_data(),
+					'initialBackgroundSyncStatus' => $this->manual_sync->background_sync_status(),
+					'mapping'                     => $this->mapping_data_cached(),
 					'strings'                     => [
 					'closeDeleteProgress'  => __( 'Close delete progress', 'progress-agentic-rag-connector' ),
 					'closeSyncProgress'    => __( 'Close sync progress', 'progress-agentic-rag-connector' ),
@@ -585,7 +585,7 @@ final class AdminPage {
 		$api_connected             = $this->settings->get_api_is_reachable();
 		$scheduler_available       = $this->manual_sync->scheduler_available();
 		$scheduler_status          = $this->manual_sync->scheduler_status();
-		$background_sync_status    = $this->manual_sync->ensure_automatic_sync();
+		$background_sync_status    = $this->manual_sync->background_sync_status();
 		$manual_sync_status        = $this->manual_sync->status();
 		$delete_status             = $this->manual_sync->delete_status();
 		$delete_running            = 'running' === ( $delete_status['status'] ?? '' );
@@ -911,6 +911,39 @@ final class AdminPage {
 		return [
 			'taxonomies' => $taxonomies,
 			'labelsets'  => $this->api_client->get_labelsets(),
+		];
+	}
+
+	/**
+	 * Same shape as mapping_data(), but never performs an upstream HTTP request.
+	 *
+	 * Used in the admin page boot path (enqueue_assets) where any blocking
+	 * call would stall every tab. The taxonomy-labeling tab still calls
+	 * mapping_data() server-side and get_labelsets() refreshes the cache.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function mapping_data_cached(): array {
+		$taxonomies = [];
+
+		foreach ( get_taxonomies( [ 'public' => true ], 'objects' ) as $taxonomy_name => $taxonomy ) {
+			$terms = [];
+			foreach ( $this->taxonomy_terms( [ $taxonomy_name ] )[ $taxonomy_name ] ?? [] as $term ) {
+				$terms[] = [
+					'id'   => (int) $term->term_id,
+					'name' => (string) $term->name,
+				];
+			}
+
+			$taxonomies[ $taxonomy_name ] = [
+				'label' => isset( $taxonomy->labels->name ) ? (string) $taxonomy->labels->name : (string) $taxonomy_name,
+				'terms' => $terms,
+			];
+		}
+
+		return [
+			'taxonomies' => $taxonomies,
+			'labelsets'  => $this->api_client->get_labelsets_cached(),
 		];
 	}
 
