@@ -607,6 +607,23 @@
 	};
 
 	if ( addMappingButton && taxonomySelect && mappingContainer ) {
+		if ( ! ( mappingConfig.labelsets || [] ).length ) {
+			// Cold-cache page load: refresh labelsets in the background instead of
+			// blocking render (see AdminPage::get_labelsets() AJAX handler).
+			request( 'progress_agentic_rag_get_labelsets' )
+				.then( ( data ) => {
+					mappingConfig.labelsets = Array.isArray( data.labelsets ) ? data.labelsets : [];
+
+					mappingContainer.querySelectorAll( '[data-progress-agentic-rag-labelset-select], [data-progress-agentic-rag-fallback-labelset-select]' ).forEach( ( select ) => {
+						const current = select.value;
+						select.innerHTML = '';
+						select.appendChild( labelsetOptions() );
+						select.value = current;
+					} );
+				} )
+				.catch( () => {} );
+		}
+
 		addMappingButton.addEventListener( 'click', () => {
 			const taxonomy = taxonomySelect.value;
 

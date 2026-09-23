@@ -8,7 +8,7 @@
  * Plugin Name:       Progress Agentic RAG connector
  * Plugin URI:        https://github.com/nuclia/wordpress-plugin
  * Description:       Index WordPress content into Progress Agentic RAG and power knowledge-base search.
- * Version:           1.0.1
+ * Version:           1.0.2
  * Requires at least: 6.8
  * Requires PHP:      8.1
  * Author:            Progress Software
@@ -30,7 +30,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- Public plugin constants already use the Progress Agentic RAG prefix.
-define( 'PROGRESS_AGENTIC_RAG_VERSION', '1.0.1' );
+define( 'PROGRESS_AGENTIC_RAG_VERSION', '1.0.2' );
 define( 'PROGRESS_AGENTIC_RAG_MIN_PHP_VERSION', '8.1' );
 define( 'PROGRESS_AGENTIC_RAG_MIN_WP_VERSION', '6.8' );
 define( 'PROGRESS_AGENTIC_RAG_FILE', __FILE__ );

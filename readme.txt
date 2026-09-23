@@ -3,7 +3,7 @@ Contributors: progresssoftware
 Tags: search, ai, knowledge-base, rag, indexing
 Requires at least: 6.8
 Tested up to: 7.0
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 Requires PHP: 8.1
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -42,6 +42,13 @@ Service details:
 No. Service credentials stay server-side, and public widget requests use the server-side proxy.
 
 == Changelog ==
+
+= 1.0.2 =
+
+* Fix: Admin pages no longer perform blocking upstream sync/labelset calls
+  during render, which caused 504 timeouts on slow or large sites. The
+  taxonomy labeling tab now loads instantly from cache and refreshes its
+  labelset dropdown in the background instead of fetching it synchronously.
 
 = 1.0.1 =
 

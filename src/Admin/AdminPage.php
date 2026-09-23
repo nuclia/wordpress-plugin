@@ -50,6 +50,7 @@ final class AdminPage {
 		add_action( 'wp_ajax_progress_agentic_rag_label_reprocess_cancel', [ $this, 'cancel_label_reprocess' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_label_reprocess_status', [ $this, 'label_reprocess_status' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_get_labelset_labels', [ $this, 'get_labelset_labels' ] );
+		add_action( 'wp_ajax_progress_agentic_rag_get_labelsets', [ $this, 'get_labelsets' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_test_connection', [ $this, 'test_connection' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_retry_failed_sync', [ $this, 'retry_failed_sync' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_delete_synced_resource', [ $this, 'delete_synced_resource' ] );
@@ -373,6 +374,16 @@ final class AdminPage {
 		wp_send_json_success( [ 'labels' => $this->api_client->get_labelset_labels( $labelset ) ] );
 	}
 
+	public function get_labelsets(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => __( 'You do not have permission to load labelsets.', 'progress-agentic-rag-connector' ) ], 403 );
+		}
+
+		check_ajax_referer( 'progress_agentic_rag_manual_sync' );
+
+		wp_send_json_success( [ 'labelsets' => $this->api_client->get_labelsets() ] );
+	}
+
 	public function test_connection(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( [ 'message' => __( 'You do not have permission to test the connection.', 'progress-agentic-rag-connector' ) ], 403 );
@@ -628,7 +639,7 @@ final class AdminPage {
 		$taxonomies                = get_taxonomies( [ 'public' => true ], 'objects' );
 		$taxonomy_label_map        = $this->settings->get_taxonomy_label_map();
 		$taxonomy_label_map_option = SettingsRepository::OPTION_TAXONOMY_LABEL_MAP;
-		$labelsets                 = $this->api_client->get_labelsets();
+		$labelsets                 = $this->api_client->get_labelsets_cached();
 		$taxonomy_terms            = $this->taxonomy_terms( array_keys( $taxonomies ) );
 		$labelset_labels           = $this->labelset_labels_for_mapping( $taxonomy_label_map );
 		$taxonomy_mapping_warnings = $this->taxonomy_mapping_warnings( $taxonomy_label_map, $labelsets, $taxonomy_terms, $labelset_labels, (int) ( $sync_status['total_mapped'] ?? 0 ) );
@@ -888,38 +899,9 @@ final class AdminPage {
 	}
 
 	/**
-	 * @return array<string, mixed>
-	 */
-	private function mapping_data(): array {
-		$taxonomies = [];
-
-		foreach ( get_taxonomies( [ 'public' => true ], 'objects' ) as $taxonomy_name => $taxonomy ) {
-			$terms = [];
-			foreach ( $this->taxonomy_terms( [ $taxonomy_name ] )[ $taxonomy_name ] ?? [] as $term ) {
-				$terms[] = [
-					'id'   => (int) $term->term_id,
-					'name' => (string) $term->name,
-				];
-			}
-
-			$taxonomies[ $taxonomy_name ] = [
-				'label' => isset( $taxonomy->labels->name ) ? (string) $taxonomy->labels->name : (string) $taxonomy_name,
-				'terms' => $terms,
-			];
-		}
-
-		return [
-			'taxonomies' => $taxonomies,
-			'labelsets'  => $this->api_client->get_labelsets(),
-		];
-	}
-
-	/**
-	 * Same shape as mapping_data(), but never performs an upstream HTTP request.
-	 *
-	 * Used in the admin page boot path (enqueue_assets) where any blocking
-	 * call would stall every tab. The taxonomy-labeling tab still calls
-	 * mapping_data() server-side and get_labelsets() refreshes the cache.
+	 * Never performs an upstream HTTP request; the taxonomy-labeling tab's
+	 * "Add mapping" dropdown self-heals via the get_labelsets() AJAX handler
+	 * when the cache is cold (see assets/js/admin.js).
 	 *
 	 * @return array<string, mixed>
 	 */
