@@ -401,12 +401,7 @@ final class AdminPageTest extends TestCase {
 
 		self::assertSame( 'Stored, unverified', $status_ref->invoke( $admin ) );
 
-		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
-			'response' => [
-				'code' => 200,
-			],
-			'body'     => '{"labels":["General"]}',
-		];
+		( new SettingsRepository() )->set_labelset_labels_cache( 'Audience', [ 'General' ] );
 
 		$labels_ref = new ReflectionMethod( $admin, 'labelset_labels_for_mapping' );
 		$labels_ref->setAccessible( true );

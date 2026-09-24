@@ -50,6 +50,7 @@ final class AdminPage {
 		add_action( 'wp_ajax_progress_agentic_rag_label_reprocess_cancel', [ $this, 'cancel_label_reprocess' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_label_reprocess_status', [ $this, 'label_reprocess_status' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_get_labelset_labels', [ $this, 'get_labelset_labels' ] );
+		add_action( 'wp_ajax_progress_agentic_rag_get_labelsets', [ $this, 'get_labelsets' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_test_connection', [ $this, 'test_connection' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_retry_failed_sync', [ $this, 'retry_failed_sync' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_delete_synced_resource', [ $this, 'delete_synced_resource' ] );
@@ -97,53 +98,55 @@ final class AdminPage {
 				'nonce'                       => wp_create_nonce( 'progress_agentic_rag_manual_sync' ),
 				'initialSyncStatus'           => $this->manual_sync->status(),
 				'initialDeleteStatus'         => $this->manual_sync->delete_status(),
-					'initialBackgroundSyncStatus' => $this->manual_sync->ensure_automatic_sync(),
-					'mapping'                     => $this->mapping_data(),
+					'initialBackgroundSyncStatus' => $this->manual_sync->background_sync_status(),
+					'mapping'                     => $this->mapping_data_cached(),
 					'strings'                     => [
-					'closeDeleteProgress'  => __( 'Close delete progress', 'progress-agentic-rag-connector' ),
-					'closeSyncProgress'    => __( 'Close sync progress', 'progress-agentic-rag-connector' ),
+					'closeDeleteProgress'    => __( 'Close delete progress', 'progress-agentic-rag-connector' ),
+					'closeSyncProgress'      => __( 'Close sync progress', 'progress-agentic-rag-connector' ),
 					/* translators: %d: synced resource count. */
-					'confirmDelete'        => __( 'Delete %d synced resource(s) from Progress Agentic RAG and clear their local sync mappings? This cannot be undone.', 'progress-agentic-rag-connector' ),
+					'confirmDelete'          => __( 'Delete %d synced resource(s) from Progress Agentic RAG and clear their local sync mappings? This cannot be undone.', 'progress-agentic-rag-connector' ),
 					/* translators: %d: synced resource count. */
-					'confirmReprocess'     => __( 'Update labels for %d synced resource(s) with the current taxonomy mapping?', 'progress-agentic-rag-connector' ),
-					'deleteFailed'         => __( 'Synced resources could not be deleted.', 'progress-agentic-rag-connector' ),
-					'deleteModalLabel'     => __( 'Synced resource delete', 'progress-agentic-rag-connector' ),
-					'deleteModalTitle'     => __( 'Deleting synced resources', 'progress-agentic-rag-connector' ),
-					'deleteTotalLabel'     => __( 'Total resources', 'progress-agentic-rag-connector' ),
-					'deleteDoneLabel'      => __( 'Deleted', 'progress-agentic-rag-connector' ),
-					'deleteCurrentLabel'   => __( 'Current resource', 'progress-agentic-rag-connector' ),
-					'deleteRunning'        => __( 'Delete in progress', 'progress-agentic-rag-connector' ),
-					'deleting'             => __( 'Preparing synced resource deletion.', 'progress-agentic-rag-connector' ),
-					'failed'               => __( 'Manual sync could not start.', 'progress-agentic-rag-connector' ),
-					'running'              => __( 'Sync in progress', 'progress-agentic-rag-connector' ),
-					'syncModalLabel'       => __( 'Manual sync', 'progress-agentic-rag-connector' ),
-					'syncModalTitle'       => __( 'Syncing selected content', 'progress-agentic-rag-connector' ),
-					'syncTotalLabel'       => __( 'Total entities', 'progress-agentic-rag-connector' ),
-					'syncDoneLabel'        => __( 'Synced', 'progress-agentic-rag-connector' ),
-					'syncCurrentLabel'     => __( 'Current entity', 'progress-agentic-rag-connector' ),
-					'sync'                 => __( 'Sync manually', 'progress-agentic-rag-connector' ),
-					'reprocessFailed'      => __( 'Label reprocessing could not start.', 'progress-agentic-rag-connector' ),
-					'starting'             => __( 'Preparing manual sync.', 'progress-agentic-rag-connector' ),
-					'complete'             => __( 'Manual sync complete.', 'progress-agentic-rag-connector' ),
-					'mappingSelectLabelset' => __( 'Select a labelset', 'progress-agentic-rag-connector' ),
-					'mappingRemove'        => __( 'Remove', 'progress-agentic-rag-connector' ),
-					'mappingLabelset'      => __( 'Labelset', 'progress-agentic-rag-connector' ),
-					'mappingTerm'          => __( 'Term', 'progress-agentic-rag-connector' ),
-					'mappingLabels'        => __( 'Progress Agentic RAG labels', 'progress-agentic-rag-connector' ),
-					'mappingFallback'      => __( 'Fallback labels (when no terms assigned)', 'progress-agentic-rag-connector' ),
-					'mappingSelectLabels'  => __( 'Select a labelset to load labels.', 'progress-agentic-rag-connector' ),
-					'mappingLoadingLabels' => __( 'Loading labels...', 'progress-agentic-rag-connector' ),
-					'mappingNoLabels'      => __( 'No labels available.', 'progress-agentic-rag-connector' ),
-					'mappingLabelsFailed'  => __( 'Labels could not be loaded.', 'progress-agentic-rag-connector' ),
-					'mappingNoTerms'       => __( 'No terms available for this taxonomy.', 'progress-agentic-rag-connector' ),
-					'testConnection'       => __( 'Testing connection...', 'progress-agentic-rag-connector' ),
-					'connectionTestFailed' => __( 'Connection test could not run.', 'progress-agentic-rag-connector' ),
-					'retryFailed'          => __( 'Failed sync items could not be retried.', 'progress-agentic-rag-connector' ),
-					'diagnosticsCopied'    => __( 'Diagnostics copied.', 'progress-agentic-rag-connector' ),
-					'diagnosticsFailed'    => __( 'Diagnostics could not be exported.', 'progress-agentic-rag-connector' ),
-					'confirmDeleteSingle'  => __( 'Delete this resource from Progress Agentic RAG and clear its local sync mapping?', 'progress-agentic-rag-connector' ),
-					'deleteSingleFailed'   => __( 'The synced resource could not be removed.', 'progress-agentic-rag-connector' ),
-					'deleteSingleComplete' => __( 'Synced resource removed.', 'progress-agentic-rag-connector' ),
+					'confirmReprocess'       => __( 'Update labels for %d synced resource(s) with the current taxonomy mapping?', 'progress-agentic-rag-connector' ),
+					'deleteFailed'           => __( 'Synced resources could not be deleted.', 'progress-agentic-rag-connector' ),
+					'deleteModalLabel'       => __( 'Synced resource delete', 'progress-agentic-rag-connector' ),
+					'deleteModalTitle'       => __( 'Deleting synced resources', 'progress-agentic-rag-connector' ),
+					'deleteTotalLabel'       => __( 'Total resources', 'progress-agentic-rag-connector' ),
+					'deleteDoneLabel'        => __( 'Deleted', 'progress-agentic-rag-connector' ),
+					'deleteCurrentLabel'     => __( 'Current resource', 'progress-agentic-rag-connector' ),
+					'deleteRunning'          => __( 'Delete in progress', 'progress-agentic-rag-connector' ),
+					'deleting'               => __( 'Preparing synced resource deletion.', 'progress-agentic-rag-connector' ),
+					'failed'                 => __( 'Manual sync could not start.', 'progress-agentic-rag-connector' ),
+					'running'                => __( 'Sync in progress', 'progress-agentic-rag-connector' ),
+					'syncModalLabel'         => __( 'Manual sync', 'progress-agentic-rag-connector' ),
+					'syncModalTitle'         => __( 'Syncing selected content', 'progress-agentic-rag-connector' ),
+					'syncTotalLabel'         => __( 'Total entities', 'progress-agentic-rag-connector' ),
+					'syncDoneLabel'          => __( 'Synced', 'progress-agentic-rag-connector' ),
+					'syncCurrentLabel'       => __( 'Current entity', 'progress-agentic-rag-connector' ),
+					'sync'                   => __( 'Sync manually', 'progress-agentic-rag-connector' ),
+					'reprocessFailed'        => __( 'Label reprocessing could not start.', 'progress-agentic-rag-connector' ),
+					'starting'               => __( 'Preparing manual sync.', 'progress-agentic-rag-connector' ),
+					'complete'               => __( 'Manual sync complete.', 'progress-agentic-rag-connector' ),
+					'mappingSelectLabelset'  => __( 'Select a labelset', 'progress-agentic-rag-connector' ),
+					'mappingRemove'          => __( 'Remove', 'progress-agentic-rag-connector' ),
+					'mappingLabelset'        => __( 'Labelset', 'progress-agentic-rag-connector' ),
+					'mappingTerm'            => __( 'Term', 'progress-agentic-rag-connector' ),
+					'mappingLabels'          => __( 'Progress Agentic RAG labels', 'progress-agentic-rag-connector' ),
+					'mappingFallback'        => __( 'Fallback labels (when no terms assigned)', 'progress-agentic-rag-connector' ),
+					'mappingSelectLabels'    => __( 'Select a labelset to load labels.', 'progress-agentic-rag-connector' ),
+					'mappingLoadingLabels'   => __( 'Loading labels...', 'progress-agentic-rag-connector' ),
+					'mappingNoLabels'        => __( 'No labels available.', 'progress-agentic-rag-connector' ),
+					'mappingLabelsFailed'    => __( 'Labels could not be loaded.', 'progress-agentic-rag-connector' ),
+					'mappingNoTerms'         => __( 'No terms available for this taxonomy.', 'progress-agentic-rag-connector' ),
+					/* translators: %s: labelset name. */
+					'mappingLabelsetMissing' => __( 'Labelset "%s" was not found upstream.', 'progress-agentic-rag-connector' ),
+					'testConnection'         => __( 'Testing connection...', 'progress-agentic-rag-connector' ),
+					'connectionTestFailed'   => __( 'Connection test could not run.', 'progress-agentic-rag-connector' ),
+					'retryFailed'            => __( 'Failed sync items could not be retried.', 'progress-agentic-rag-connector' ),
+					'diagnosticsCopied'      => __( 'Diagnostics copied.', 'progress-agentic-rag-connector' ),
+					'diagnosticsFailed'      => __( 'Diagnostics could not be exported.', 'progress-agentic-rag-connector' ),
+					'confirmDeleteSingle'    => __( 'Delete this resource from Progress Agentic RAG and clear its local sync mapping?', 'progress-agentic-rag-connector' ),
+					'deleteSingleFailed'     => __( 'The synced resource could not be removed.', 'progress-agentic-rag-connector' ),
+					'deleteSingleComplete'   => __( 'Synced resource removed.', 'progress-agentic-rag-connector' ),
 				],
 			]
 		);
@@ -373,6 +376,16 @@ final class AdminPage {
 		wp_send_json_success( [ 'labels' => $this->api_client->get_labelset_labels( $labelset ) ] );
 	}
 
+	public function get_labelsets(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => __( 'You do not have permission to load labelsets.', 'progress-agentic-rag-connector' ) ], 403 );
+		}
+
+		check_ajax_referer( 'progress_agentic_rag_manual_sync' );
+
+		wp_send_json_success( [ 'labelsets' => $this->api_client->get_labelsets() ] );
+	}
+
 	public function test_connection(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( [ 'message' => __( 'You do not have permission to test the connection.', 'progress-agentic-rag-connector' ) ], 403 );
@@ -585,7 +598,7 @@ final class AdminPage {
 		$api_connected             = $this->settings->get_api_is_reachable();
 		$scheduler_available       = $this->manual_sync->scheduler_available();
 		$scheduler_status          = $this->manual_sync->scheduler_status();
-		$background_sync_status    = $this->manual_sync->ensure_automatic_sync();
+		$background_sync_status    = $this->manual_sync->background_sync_status();
 		$manual_sync_status        = $this->manual_sync->status();
 		$delete_status             = $this->manual_sync->delete_status();
 		$delete_running            = 'running' === ( $delete_status['status'] ?? '' );
@@ -628,7 +641,7 @@ final class AdminPage {
 		$taxonomies                = get_taxonomies( [ 'public' => true ], 'objects' );
 		$taxonomy_label_map        = $this->settings->get_taxonomy_label_map();
 		$taxonomy_label_map_option = SettingsRepository::OPTION_TAXONOMY_LABEL_MAP;
-		$labelsets                 = $this->api_client->get_labelsets();
+		$labelsets                 = $this->api_client->get_labelsets_cached();
 		$taxonomy_terms            = $this->taxonomy_terms( array_keys( $taxonomies ) );
 		$labelset_labels           = $this->labelset_labels_for_mapping( $taxonomy_label_map );
 		$taxonomy_mapping_warnings = $this->taxonomy_mapping_warnings( $taxonomy_label_map, $labelsets, $taxonomy_terms, $labelset_labels, (int) ( $sync_status['total_mapped'] ?? 0 ) );
@@ -888,9 +901,13 @@ final class AdminPage {
 	}
 
 	/**
+	 * Never performs an upstream HTTP request; the taxonomy-labeling tab's
+	 * "Add mapping" dropdown self-heals via the get_labelsets() AJAX handler
+	 * when the cache is cold (see assets/js/admin.js).
+	 *
 	 * @return array<string, mixed>
 	 */
-	private function mapping_data(): array {
+	private function mapping_data_cached(): array {
 		$taxonomies = [];
 
 		foreach ( get_taxonomies( [ 'public' => true ], 'objects' ) as $taxonomy_name => $taxonomy ) {
@@ -910,7 +927,7 @@ final class AdminPage {
 
 		return [
 			'taxonomies' => $taxonomies,
-			'labelsets'  => $this->api_client->get_labelsets(),
+			'labelsets'  => $this->api_client->get_labelsets_cached(),
 		];
 	}
 
@@ -937,6 +954,8 @@ final class AdminPage {
 	}
 
 	/**
+	 * Cache-only; JS tops up stale labels via get_labelset_labels() after load.
+	 *
 	 * @param array<string, mixed> $mapping Taxonomy label mapping.
 	 *
 	 * @return array<string, list<string>>
@@ -963,7 +982,7 @@ final class AdminPage {
 
 		$labels = [];
 		foreach ( array_keys( $labelsets ) as $labelset ) {
-			$labels[ $labelset ] = $this->api_client->get_labelset_labels( $labelset );
+			$labels[ $labelset ] = $this->api_client->get_labelset_labels_cached( $labelset );
 		}
 
 		return $labels;

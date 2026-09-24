@@ -110,20 +110,30 @@ final class Scheduler {
 			return 0;
 		}
 
-		return count(
-			as_get_scheduled_actions(
-				array(
-					'hook'     => $hook,
-					'group'    => $group,
-					'status'   => $status,
-					'per_page' => -1,
-				)
-			)
+		$args = array(
+			'hook'   => $hook,
+			'group'  => $group,
+			'status' => $status,
 		);
+
+		// as_get_scheduled_actions() has no 'count' mode — it always hydrates every
+		// matching action. Only the underlying store's query_actions() supports a
+		// real COUNT query, via its second, undocumented-by-wrapper argument. Fall
+		// back to the (slower) wrapper when only the as_* function shims exist.
+		if ( class_exists( '\ActionScheduler' ) ) {
+			$count = \ActionScheduler::store()->query_actions( $args, 'count' );
+
+			return is_numeric( $count ) ? (int) $count : 0;
+		}
+
+		return count( as_get_scheduled_actions( array_merge( $args, [ 'per_page' => -1 ] ) ) );
 	}
 
 	/**
 	 * Get scheduled actions by status.
+	 *
+	 * Only use this when you genuinely need to inspect action args. For pure
+	 * counts, use count_actions() — it avoids loading every row into memory.
 	 *
 	 * @param string $hook   Action hook.
 	 * @param string $group  Action Scheduler group.

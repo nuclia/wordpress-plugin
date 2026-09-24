@@ -454,7 +454,7 @@
 			'nuclia_taxonomy_label_map[' + taxonomy + '][fallback][labels][]' :
 			'nuclia_taxonomy_label_map[' + taxonomy + '][terms][' + termId + '][]';
 
-	const renderLabelCheckboxes = ( container, taxonomy, labels, termId = '', fallback = false ) => {
+	const renderLabelCheckboxes = ( container, taxonomy, labels, termId = '', fallback = false, checkedValues = null ) => {
 		container.replaceChildren();
 
 		if ( ! labels.length ) {
@@ -471,6 +471,9 @@
 			input.type = 'checkbox';
 			input.value = label;
 			input.name = labelCheckboxName( taxonomy, termId, fallback );
+			if ( checkedValues && checkedValues.includes( label ) ) {
+				input.checked = true;
+			}
 			text.textContent = label;
 
 			wrapper.append( input, text );
@@ -485,6 +488,31 @@
 
 		const data = await request( 'progress_agentic_rag_get_labelset_labels', { labelset } );
 		return Array.isArray( data.labels ) ? data.labels : [];
+	};
+
+	// Cold cache: server rendered from saved state only. Fetch confirmed
+	// labels and merge them in without discarding checked values.
+	const refreshSavedLabelset = async ( select ) => {
+		const labelset = select.dataset.selectedLabelset || '';
+		if ( ! labelset ) {
+			return;
+		}
+
+		const taxonomy = select.dataset.taxonomy;
+		const isFallback = select.matches( '[data-progress-agentic-rag-fallback-labelset-select]' );
+		const containers = isFallback ?
+			[ mappingContainer.querySelector( '[data-progress-agentic-rag-fallback-labels][data-taxonomy="' + selectorValue( taxonomy ) + '"]' ) ] :
+			Array.from( mappingContainer.querySelectorAll( '[data-progress-agentic-rag-label-checkboxes][data-taxonomy="' + selectorValue( taxonomy ) + '"]' ) );
+
+		try {
+			const labels = await loadMappingLabels( labelset );
+			containers.filter( Boolean ).forEach( ( container ) => {
+				const checked = ( container.dataset.checkedLabels || '' ).split( '|' ).filter( Boolean );
+				renderLabelCheckboxes( container, taxonomy, labels, container.dataset.termId || '', isFallback, checked );
+			} );
+		} catch ( error ) {
+			// Keep the server-rendered state on failure.
+		}
 	};
 
 	const buildMappingBlock = ( taxonomy ) => {
@@ -607,6 +635,46 @@
 	};
 
 	if ( addMappingButton && taxonomySelect && mappingContainer ) {
+		if ( ! ( mappingConfig.labelsets || [] ).length ) {
+			// Cold-cache page load: refresh labelsets in the background instead of
+			// blocking render (see AdminPage::get_labelsets() AJAX handler).
+			request( 'progress_agentic_rag_get_labelsets' )
+				.then( ( data ) => {
+					mappingConfig.labelsets = Array.isArray( data.labelsets ) ? data.labelsets : [];
+
+					mappingContainer.querySelectorAll( '[data-progress-agentic-rag-labelset-select], [data-progress-agentic-rag-fallback-labelset-select]' ).forEach( ( select ) => {
+						// Saved value is the source of truth, not the select's current value.
+						const selected = select.dataset.selectedLabelset || '';
+						select.innerHTML = '';
+						select.appendChild( labelsetOptions() );
+						select.value = selected;
+
+						const label = select.closest( 'label' ) || select;
+						if ( label.nextElementSibling && label.nextElementSibling.hasAttribute( 'data-progress-agentic-rag-labelset-missing' ) ) {
+							label.nextElementSibling.remove();
+						}
+
+						// Confirmed list now available: a missing saved value is truly gone.
+						if ( selected && ! mappingConfig.labelsets.includes( selected ) ) {
+							const warning = document.createElement( 'p' );
+							warning.className = 'progress-agentic-rag__mapping-muted';
+							warning.setAttribute( 'data-progress-agentic-rag-labelset-missing', '' );
+							warning.textContent = ( config.strings.mappingLabelsetMissing || 'Labelset "%s" was not found upstream.' ).replace( '%s', selected );
+							label.insertAdjacentElement( 'afterend', warning );
+						}
+					} );
+				} )
+				.catch( () => {} );
+		}
+
+		// Label lists have their own staleness, separate from the labelset list;
+		// always top up (the AJAX handler is a no-op if already warm).
+		mappingContainer.querySelectorAll( '[data-progress-agentic-rag-labelset-select][data-selected-labelset], [data-progress-agentic-rag-fallback-labelset-select][data-selected-labelset]' ).forEach( ( select ) => {
+			if ( select.dataset.selectedLabelset ) {
+				refreshSavedLabelset( select );
+			}
+		} );
+
 		addMappingButton.addEventListener( 'click', () => {
 			const taxonomy = taxonomySelect.value;
 
