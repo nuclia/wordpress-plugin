@@ -55,6 +55,8 @@ $GLOBALS['progress_agentic_rag_test_is_front_page'] = true;
 $GLOBALS['progress_agentic_rag_test_query_vars'] = [];
 $GLOBALS['progress_agentic_rag_test_deleted_options'] = [];
 $GLOBALS['progress_agentic_rag_test_db_delta'] = [];
+$GLOBALS['progress_agentic_rag_test_users'] = [];
+$GLOBALS['progress_agentic_rag_test_acf_fields'] = [];
 
 if ( ! class_exists( 'WP_Error' ) ) {
 	class WP_Error {
@@ -517,6 +519,30 @@ if ( ! function_exists( 'get_terms' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_term' ) ) {
+	function get_term( int $term_id, string $taxonomy = '' ): object|null {
+		$taxonomies = '' !== $taxonomy
+			? [ $taxonomy => $GLOBALS['progress_agentic_rag_test_terms'][ $taxonomy ] ?? [] ]
+			: $GLOBALS['progress_agentic_rag_test_terms'];
+
+		foreach ( $taxonomies as $terms ) {
+			foreach ( $terms as $id => $term ) {
+				if ( (int) $id !== $term_id ) {
+					continue;
+				}
+
+				return is_object( $term ) ? $term : (object) [
+					'term_id' => $term_id,
+					'name'    => 'Term ' . $term_id,
+				];
+			}
+		}
+
+		return null;
+	}
+}
+
+
 if ( ! function_exists( 'get_bloginfo' ) ) {
 	function get_bloginfo( string $show = '' ): string {
 		return 'en-US';
@@ -527,6 +553,14 @@ if ( ! function_exists( 'get_permalink' ) ) {
 	function get_permalink( WP_Post|int $post ): string {
 		$post_id = $post instanceof WP_Post ? $post->ID : $post;
 		return 'https://example.test/?p=' . $post_id;
+	}
+}
+
+if ( ! function_exists( 'url_to_postid' ) ) {
+	function url_to_postid( string $url ): int {
+		// Mirrors get_permalink()'s stub format above, and real WordPress's own
+		// fallback resolution of the default "?p=ID" permalink structure.
+		return preg_match( '/[?&]p=(\d+)/', $url, $matches ) ? (int) $matches[1] : 0;
 	}
 }
 
@@ -757,5 +791,20 @@ if ( ! function_exists( 'get_post_types' ) ) {
 if ( ! function_exists( 'get_post_type_object' ) ) {
 	function get_post_type_object( string $post_type ): ?object {
 		return $GLOBALS['progress_agentic_rag_test_post_type_objects'][ $post_type ] ?? null;
+	}
+}
+
+if ( ! function_exists( 'get_userdata' ) ) {
+	function get_userdata( int $user_id ): object|false {
+		return $GLOBALS['progress_agentic_rag_test_users'][ $user_id ] ?? false;
+	}
+}
+
+if ( ! function_exists( 'get_field_objects' ) ) {
+	/**
+	 * @return array<string, array<string, mixed>>|false
+	 */
+	function get_field_objects( int $post_id ): array|false {
+		return $GLOBALS['progress_agentic_rag_test_acf_fields'][ $post_id ] ?? false;
 	}
 }

@@ -7,6 +7,7 @@
 
 use PHPUnit\Framework\TestCase;
 use ProgressAgenticRag\Api\ApiClient;
+use ProgressAgenticRag\Indexing\AcfAdapter;
 use ProgressAgenticRag\Settings\SettingsRepository;
 
 final class ApiClientTest extends TestCase {
@@ -18,6 +19,9 @@ final class ApiClientTest extends TestCase {
 		$GLOBALS['progress_agentic_rag_test_taxonomies']     = [];
 		$GLOBALS['progress_agentic_rag_test_terms']          = [];
 		$GLOBALS['progress_agentic_rag_test_attached_files'] = [];
+		$GLOBALS['progress_agentic_rag_test_acf_fields']     = [];
+		$GLOBALS['progress_agentic_rag_test_posts']          = [];
+		$GLOBALS['progress_agentic_rag_test_users']          = [];
 		$GLOBALS['wpdb']                                     = new ProgressAgenticRagTestWpdb();
 
 		update_option( SettingsRepository::OPTION_ZONE, 'europe-1' );
@@ -79,6 +83,140 @@ final class ApiClientTest extends TestCase {
 		);
 		self::assertSame( 'HTML', $body['texts']['text-1']['format'] );
 		self::assertSame( 'rid-123', $GLOBALS['wpdb']->inserted[0]['data']['nuclia_rid'] );
+	}
+
+	public function test_index_post_includes_acf_metadata_as_text_2_from_fixture(): void {
+		$post_id = 789;
+
+		$GLOBALS['progress_agentic_rag_test_acf_fields'][ $post_id ] = require __DIR__ . '/fixtures/acf-fields-example.php';
+		$GLOBALS['progress_agentic_rag_test_posts'][201]             = new WP_Post(
+			[
+				'ID'          => 201,
+				'post_title'  => 'Public Related Page',
+				'post_status' => 'publish',
+			]
+		);
+		$GLOBALS['progress_agentic_rag_test_posts'][202]             = new WP_Post(
+			[
+				'ID'          => 202,
+				'post_title'  => 'Secret Draft Page',
+				'post_status' => 'draft',
+			]
+		);
+		$GLOBALS['progress_agentic_rag_test_terms']['category']      = [
+			3 => (object) [
+				'term_id' => 3,
+				'name'    => 'Eye Test',
+			],
+			4 => (object) [
+				'term_id' => 4,
+				'name'    => 'Hearing Test',
+			],
+		];
+
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 201,
+			],
+			'body'     => '{"uuid":"rid-789","seqid":"seq-789"}',
+		];
+
+		$post = new WP_Post(
+			[
+				'ID'            => $post_id,
+				'post_title'    => 'Exeter Branch',
+				'post_content'  => '',
+				'post_date_gmt' => '2026-06-17 08:00:00',
+			]
+		);
+
+		// The adapter is the single source of truth for text-2's content —
+		// asserting equality against its own output (rather than a duplicated
+		// literal) keeps this test in sync with AcfAdapterTest while still
+		// proving ApiClient actually wires the adapter's result into the
+		// request body sent to Nuclia.
+		$expected_text = ( new AcfAdapter() )->extract_text( $post );
+		self::assertNotSame( '', $expected_text, 'Fixture is expected to produce non-empty ACF text.' );
+
+		$result = ( new ApiClient( new SettingsRepository(), new AcfAdapter() ) )->index_post( $post );
+
+		self::assertTrue( $result );
+
+		$request = $GLOBALS['progress_agentic_rag_test_http_requests'][0];
+		$body    = json_decode( $request['args']['body'], true );
+
+		self::assertSame( 'PLAIN', $body['texts']['text-2']['format'] );
+		self::assertSame( $expected_text, $body['texts']['text-2']['body'] );
+		self::assertStringContainsString( 'Opening Hours: Day - Monday', $body['texts']['text-2']['body'] );
+		self::assertStringNotContainsString( 'Secret Draft Page', $body['texts']['text-2']['body'] );
+	}
+
+	public function test_index_post_sends_empty_text_2_when_no_acf_fields_present(): void {
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
+			'response' => [
+				'code' => 201,
+			],
+			'body'     => '{"uuid":"rid-999","seqid":"seq-999"}',
+		];
+
+		$result = ( new ApiClient( new SettingsRepository(), new AcfAdapter() ) )->index_post(
+			new WP_Post(
+				[
+					'ID'            => 999,
+					'post_title'    => 'Plain Article',
+					'post_content'  => '<p>Body</p>',
+					'post_date_gmt' => '2026-06-17 08:00:00',
+				]
+			)
+		);
+
+		self::assertTrue( $result );
+
+		$request = $GLOBALS['progress_agentic_rag_test_http_requests'][0];
+		$body    = json_decode( $request['args']['body'], true );
+
+		// text-2 is always sent, even empty — never omitted.
+		self::assertSame( '', $body['texts']['text-2']['body'] );
+		self::assertSame( 'PLAIN', $body['texts']['text-2']['format'] );
+	}
+
+	/**
+	 * Nuclia's PATCH /resource/{rid} merges the "texts" dict by key: an
+	 * omitted "text-2" key leaves prior content untouched rather than
+	 * clearing it, so a cleared-ACF post must still send an explicit empty
+	 * "text-2" body.
+	 */
+	public function test_sync_post_clears_stale_text_2_when_acf_fields_are_removed(): void {
+		// Post was previously synced (has an upstream rid) and now has no ACF
+		// field data — the fields were cleared since the last sync.
+		$GLOBALS['wpdb']->var                                     = 'rid-654';
+		$GLOBALS['progress_agentic_rag_test_acf_fields'][654]     = false;
+		$GLOBALS['progress_agentic_rag_test_http_responses'][]    = [
+			'response' => [
+				'code' => 200,
+			],
+			'body'     => '{"seqid":"seq-cleared"}',
+		];
+
+		$result = ( new ApiClient( new SettingsRepository(), new AcfAdapter() ) )->sync_post(
+			new WP_Post(
+				[
+					'ID'           => 654,
+					'post_title'   => 'Branch With Fields Removed',
+					'post_content' => '<p>Body</p>',
+				]
+			)
+		);
+
+		self::assertTrue( $result );
+
+		$request = $GLOBALS['progress_agentic_rag_test_http_requests'][0];
+		$body    = json_decode( $request['args']['body'], true );
+
+		self::assertSame( 'PATCH', $request['args']['method'] );
+		self::assertArrayHasKey( 'text-2', $body['texts'], 'text-2 must be explicitly sent (even empty) to clear stale upstream content.' );
+		self::assertSame( '', $body['texts']['text-2']['body'] );
+		self::assertSame( 'PLAIN', $body['texts']['text-2']['format'] );
 	}
 
 	public function test_update_resource_labels_sends_label_only_patch_body(): void {

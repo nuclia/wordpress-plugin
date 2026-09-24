@@ -3,7 +3,7 @@ Contributors: progresssoftware
 Tags: search, ai, knowledge-base, rag, indexing
 Requires at least: 6.8
 Tested up to: 7.0
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 Requires PHP: 8.1
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -42,6 +42,12 @@ Service details:
 No. Service credentials stay server-side, and public widget requests use the server-side proxy.
 
 == Changelog ==
+
+= 1.0.1 =
+
+* Fix: Advanced Custom Fields (ACF) data (e.g. Branch page locations, opening hours, contact
+  details) is now indexed alongside post content, so it can be discovered and answered by
+  Agentic RAG.
 
 = 1.0.0 =
 
