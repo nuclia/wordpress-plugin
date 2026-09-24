@@ -49,6 +49,25 @@ defined( 'ABSPATH' ) || exit;
 					$available_labels    = '' !== $taxonomy_labelset && isset( $labelset_labels[ $taxonomy_labelset ] ) ? $labelset_labels[ $taxonomy_labelset ] : [];
 					$fallback_available  = '' !== $fallback_labelset && isset( $labelset_labels[ $fallback_labelset ] ) ? $labelset_labels[ $fallback_labelset ] : [];
 					$terms               = $taxonomy_terms[ $taxonomy_key ] ?? [];
+
+					// Keep saved/checked labels visible until the labelset's list is fetched.
+					if ( empty( $available_labels ) ) {
+						$saved_term_labels = [];
+						foreach ( $term_map as $term_saved_labels ) {
+							$term_saved_labels = is_array( $term_saved_labels ) ? $term_saved_labels : ( '' !== $term_saved_labels ? [ $term_saved_labels ] : [] );
+							foreach ( $term_saved_labels as $saved_label ) {
+								$saved_term_labels[ (string) $saved_label ] = true;
+							}
+						}
+						$available_labels = array_keys( $saved_term_labels );
+					}
+					if ( empty( $fallback_available ) ) {
+						$fallback_available = $fallback_labels;
+					}
+
+					// Keep a saved value selected until $labelsets is populated and can confirm it.
+					$taxonomy_labelset_options = ( '' !== $taxonomy_labelset && empty( $labelsets ) ) ? [ $taxonomy_labelset ] : $labelsets;
+					$fallback_labelset_options = ( '' !== $fallback_labelset && empty( $labelsets ) ) ? [ $fallback_labelset ] : $labelsets;
 					?>
 					<div class="progress-agentic-rag__mapping-block" data-progress-agentic-rag-mapping-block data-taxonomy="<?php echo esc_attr( $taxonomy_key ); ?>">
 						<div class="progress-agentic-rag__mapping-block-header">
@@ -60,9 +79,9 @@ defined( 'ABSPATH' ) || exit;
 						</div>
 						<label class="progress-agentic-rag__mapping-select" for="progress-agentic-rag-labelset-<?php echo esc_attr( $taxonomy_key ); ?>">
 							<span><?php esc_html_e( 'Labelset', 'progress-agentic-rag-connector' ); ?></span>
-							<select id="progress-agentic-rag-labelset-<?php echo esc_attr( $taxonomy_key ); ?>" name="<?php echo esc_attr( $taxonomy_label_map_option ); ?>[<?php echo esc_attr( $taxonomy_key ); ?>][labelset]" data-progress-agentic-rag-labelset-select data-taxonomy="<?php echo esc_attr( $taxonomy_key ); ?>">
+							<select id="progress-agentic-rag-labelset-<?php echo esc_attr( $taxonomy_key ); ?>" name="<?php echo esc_attr( $taxonomy_label_map_option ); ?>[<?php echo esc_attr( $taxonomy_key ); ?>][labelset]" data-progress-agentic-rag-labelset-select data-taxonomy="<?php echo esc_attr( $taxonomy_key ); ?>" data-selected-labelset="<?php echo esc_attr( $taxonomy_labelset ); ?>">
 								<option value=""><?php esc_html_e( 'Select a labelset', 'progress-agentic-rag-connector' ); ?></option>
-								<?php foreach ( $labelsets as $labelset ) : ?>
+								<?php foreach ( $taxonomy_labelset_options as $labelset ) : ?>
 									<option value="<?php echo esc_attr( $labelset ); ?>" <?php selected( $taxonomy_labelset, $labelset ); ?>><?php echo esc_html( $labelset ); ?></option>
 								<?php endforeach; ?>
 							</select>
@@ -92,7 +111,7 @@ defined( 'ABSPATH' ) || exit;
 										<tr>
 											<th scope="row"><?php echo esc_html( $term->name ); ?></th>
 											<td>
-												<div class="progress-agentic-rag__label-checkboxes" data-progress-agentic-rag-label-checkboxes data-taxonomy="<?php echo esc_attr( $taxonomy_key ); ?>" data-term-id="<?php echo esc_attr( (string) $term->term_id ); ?>">
+												<div class="progress-agentic-rag__label-checkboxes" data-progress-agentic-rag-label-checkboxes data-taxonomy="<?php echo esc_attr( $taxonomy_key ); ?>" data-term-id="<?php echo esc_attr( (string) $term->term_id ); ?>" data-checked-labels="<?php echo esc_attr( implode( '|', $term_labels ) ); ?>">
 													<?php if ( empty( $available_labels ) ) : ?>
 														<em><?php echo '' === $taxonomy_labelset ? esc_html__( 'Select a labelset to load labels.', 'progress-agentic-rag-connector' ) : esc_html__( 'No labels available.', 'progress-agentic-rag-connector' ); ?></em>
 													<?php else : ?>
@@ -115,14 +134,14 @@ defined( 'ABSPATH' ) || exit;
 							<p><strong><?php esc_html_e( 'Fallback labels (when no terms assigned)', 'progress-agentic-rag-connector' ); ?></strong></p>
 							<label class="progress-agentic-rag__mapping-select" for="progress-agentic-rag-fallback-labelset-<?php echo esc_attr( $taxonomy_key ); ?>">
 								<span><?php esc_html_e( 'Labelset', 'progress-agentic-rag-connector' ); ?></span>
-								<select id="progress-agentic-rag-fallback-labelset-<?php echo esc_attr( $taxonomy_key ); ?>" name="<?php echo esc_attr( $taxonomy_label_map_option ); ?>[<?php echo esc_attr( $taxonomy_key ); ?>][fallback][labelset]" data-progress-agentic-rag-fallback-labelset-select data-taxonomy="<?php echo esc_attr( $taxonomy_key ); ?>">
+								<select id="progress-agentic-rag-fallback-labelset-<?php echo esc_attr( $taxonomy_key ); ?>" name="<?php echo esc_attr( $taxonomy_label_map_option ); ?>[<?php echo esc_attr( $taxonomy_key ); ?>][fallback][labelset]" data-progress-agentic-rag-fallback-labelset-select data-taxonomy="<?php echo esc_attr( $taxonomy_key ); ?>" data-selected-labelset="<?php echo esc_attr( $fallback_labelset ); ?>">
 									<option value=""><?php esc_html_e( 'Select a labelset', 'progress-agentic-rag-connector' ); ?></option>
-									<?php foreach ( $labelsets as $labelset ) : ?>
+									<?php foreach ( $fallback_labelset_options as $labelset ) : ?>
 										<option value="<?php echo esc_attr( $labelset ); ?>" <?php selected( $fallback_labelset, $labelset ); ?>><?php echo esc_html( $labelset ); ?></option>
 									<?php endforeach; ?>
 								</select>
 							</label>
-							<div class="progress-agentic-rag__fallback-labels" data-progress-agentic-rag-fallback-labels data-taxonomy="<?php echo esc_attr( $taxonomy_key ); ?>">
+							<div class="progress-agentic-rag__fallback-labels" data-progress-agentic-rag-fallback-labels data-taxonomy="<?php echo esc_attr( $taxonomy_key ); ?>" data-checked-labels="<?php echo esc_attr( implode( '|', $fallback_labels ) ); ?>">
 								<?php if ( empty( $fallback_available ) ) : ?>
 									<em><?php echo '' === $fallback_labelset ? esc_html__( 'Select a labelset to load labels.', 'progress-agentic-rag-connector' ) : esc_html__( 'No labels available.', 'progress-agentic-rag-connector' ); ?></em>
 								<?php else : ?>

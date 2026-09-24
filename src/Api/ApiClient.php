@@ -267,6 +267,20 @@ final class ApiClient {
 	}
 
 	/**
+	 * Cached labels only, no upstream request; use in non-blocking render paths.
+	 *
+	 * @return list<string>
+	 */
+	public function get_labelset_labels_cached( string $labelset ): array {
+		$labelset = trim( $labelset );
+		if ( '' === $labelset ) {
+			return [];
+		}
+
+		return $this->settings->get_labelset_labels_cache( $labelset );
+	}
+
+	/**
 	 * @return list<string>
 	 */
 	public function get_labelset_labels( string $labelset ): array {
