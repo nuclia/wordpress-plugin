@@ -17,7 +17,7 @@ final class ProxyController {
 	private const QUERY_VAR_PATH          = 'progress_agentic_rag_proxy_path';
 	private const OPTION_REWRITE_VERSION  = 'progress_agentic_rag_proxy_rewrite_version';
 	private const MAX_PATH_LENGTH         = 2048;
-	private const MAX_QUERY_STRING_LENGTH = 2048;
+	private const MAX_QUERY_STRING_LENGTH = 8192; // Matches Apache/nginx default request-line limits.
 	private const MAX_BODY_BYTES          = 5242880; // 5 MB default; filterable via progress_agentic_rag_proxy_max_body_bytes.
 
 	public function __construct( private readonly SettingsRepository $settings ) {
@@ -174,7 +174,15 @@ final class ProxyController {
 			$normalized_path
 		);
 
+		if ( strlen( $query_string ) > self::MAX_QUERY_STRING_LENGTH ) {
+			return $this->error( 414, 'progress_agentic_rag_proxy_query_too_long', __( 'Progress Agentic RAG proxy query string is too long.', 'progress-agentic-rag-connector' ) );
+		}
+
 		$query_string = $this->clean_query_string( $query_string );
+		if ( null === $query_string ) {
+			return $this->error( 400, 'progress_agentic_rag_proxy_invalid_query', __( 'Invalid Progress Agentic RAG proxy query string.', 'progress-agentic-rag-connector' ) );
+		}
+
 		if ( '' !== $query_string ) {
 			$remote_url .= '?' . $query_string;
 		}
@@ -294,11 +302,8 @@ final class ProxyController {
 		return $query_string;
 	}
 
-	private function clean_query_string( string $query_string ): string {
-		if ( '' === $query_string || strlen( $query_string ) > self::MAX_QUERY_STRING_LENGTH ) {
-			return '';
-		}
-
+	/** @return string|null Null if any part contains characters outside the allow-list. */
+	private function clean_query_string( string $query_string ): ?string {
 		$strip_keys = [
 			self::QUERY_VAR_ENABLED,
 			self::QUERY_VAR_ZONE,
@@ -308,13 +313,16 @@ final class ProxyController {
 		$parts = [];
 
 		foreach ( explode( '&', $query_string ) as $part ) {
-			// Allow-list is RFC 3986's "query" grammar (unreserved + sub-delims + : @ / ?), minus "&" since that's already the split delimiter above.
-			if ( '' === $part || 1 !== preg_match( '/^[A-Za-z0-9\-._~%!$\'()*+,;:@=\/?]*$/', $part ) ) {
+			if ( '' === $part ) {
 				continue;
 			}
 
-			$key = rawurldecode( explode( '=', $part, 2 )[0] ?? '' );
-			if ( ! in_array( $key, $strip_keys, true ) ) {
+			// Allow-list is RFC 3986's "query" grammar (unreserved + sub-delims + : @ / ?), minus "&" since that's already the split delimiter above.
+			if ( 1 !== preg_match( '/^[A-Za-z0-9\-._~%!$\'()*+,;:@=\/?]*$/', $part ) ) {
+				return null;
+			}
+
+			if ( ! in_array( rawurldecode( explode( '=', $part, 2 )[0] ), $strip_keys, true ) ) {
 				$parts[] = $part;
 			}
 		}

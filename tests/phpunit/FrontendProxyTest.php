@@ -269,14 +269,24 @@ final class FrontendProxyTest extends TestCase {
 		self::assertSame( 400, $this->execute_proxy( 'europe-1', 'v1%5c..%5csecret' )['status'] );
 	}
 
-	public function test_proxy_query_string_drops_disallowed_characters_and_overlong_strings(): void {
-		$_SERVER['QUERY_STRING'] = 'foo=bar&bad=<script>&ok=1';
+	public function test_proxy_rejects_disallowed_query_characters(): void {
+		$result = $this->execute_proxy( 'europe-1', 'v1/kb/test/suggest', 'GET', 'foo=bar&bad=<script>&ok=1' );
 
-		self::assertSame( 'foo=bar&ok=1', $this->client_query_string_cleaned() );
+		self::assertSame( 400, $result['status'] );
+		self::assertStringContainsString( 'progress_agentic_rag_proxy_invalid_query', $result['body'] );
 
-		$_SERVER['QUERY_STRING'] = str_repeat( 'a=1&', 1000 );
+		$result = $this->execute_proxy( 'europe-1', 'v1/kb/test/suggest', 'GET', 'query=hi&eph-token=<bad>' );
 
-		self::assertSame( '', $this->client_query_string_cleaned() );
+		self::assertSame( 400, $result['status'] );
+	}
+
+	public function test_proxy_rejects_overlong_query_strings_instead_of_dropping_them(): void {
+		$result = $this->execute_proxy( 'europe-1', 'v1/kb/test/suggest', 'GET', 'eph-token=abc&' . str_repeat( 'a=1&', 3000 ) );
+
+		self::assertSame( 414, $result['status'] );
+		self::assertStringContainsString( 'progress_agentic_rag_proxy_query_too_long', $result['body'] );
+
+		self::assertNotSame( 414, $this->execute_proxy( 'europe-1', 'v1/kb/test/suggest', 'GET', str_repeat( 'a=1&', 1250 ) . 'query=hi' )['status'] );
 	}
 
 	public function test_proxy_path_request_supports_query_vars_and_request_uri(): void {
@@ -403,7 +413,7 @@ final class FrontendProxyTest extends TestCase {
 		return $method_ref->invoke( $controller );
 	}
 
-	private function client_query_string_cleaned(): string {
+	private function client_query_string_cleaned(): ?string {
 		$controller = new ProxyController( new SettingsRepository() );
 		$query_ref = new ReflectionMethod( $controller, 'client_query_string' );
 		$query_ref->setAccessible( true );
