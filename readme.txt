@@ -2,8 +2,8 @@
 Contributors: progresssoftware
 Tags: search, ai, knowledge-base, rag, indexing
 Requires at least: 6.8
-Tested up to: 7.0
-Stable tag: 1.0.2
+Tested up to: 7.1
+Stable tag: 1.0.3
 Requires PHP: 8.1
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -41,7 +41,40 @@ Service details:
 
 No. Service credentials stay server-side, and public widget requests use the server-side proxy.
 
+== Developer Hooks ==
+
+The plugin's front-end proxy exposes two filters for site owners/developers who need
+non-default behavior. Both can be added in a small must-use plugin or a theme's
+`functions.php`.
+
+`progress_agentic_rag_proxy_max_body_bytes` (int)
+Maximum size, in bytes, of a request body the proxy will forward to Progress Agentic
+RAG. Defaults to 5242880 (5 MB), which covers normal chat/search requests and a
+single moderate image upload. Raise it if you enable larger image uploads in the
+widget.
+
+    add_filter( 'progress_agentic_rag_proxy_max_body_bytes', function () {
+        return 10 * MB_IN_BYTES;
+    } );
+
+`progress_agentic_rag_proxy_allowed_origins` (string[])
+Origins allowed to receive a reflected `Access-Control-Allow-Origin` response from
+the proxy. Defaults to the site's own origin only. The requesting `Origin` header
+value is passed as the second argument.
+
+    add_filter( 'progress_agentic_rag_proxy_allowed_origins', function ( $origins, $requesting_origin ) {
+        $origins[] = 'https://staging.example.com';
+        return $origins;
+    }, 10, 2 );
+
 == Changelog ==
+
+= 1.0.3 =
+
+* Security: hardened the front-end proxy — allow-listed and size-capped request paths,
+  query strings, and bodies; restricted CORS to the site's own origin; forced unsafe
+  upstream Content-Types (HTML/SVG/XML/JS) to download instead of render inline.
+* Dev: added CI Plugin Check enforcement; fixed readme/header metadata flagged by it.
 
 = 1.0.2 =
 

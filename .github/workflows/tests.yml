@@ -97,3 +97,21 @@ jobs:
 
       - name: Release artifact check
         run: RELEASE_DIR=build/progress-agentic-rag-connector docker compose -f docker/docker-compose.yml run --rm release-check
+
+      - name: Plugin Check
+        run: |
+          docker run --rm \
+            --network progress-agentic-rag-ci \
+            --user 0 \
+            -e WORDPRESS_DB_HOST=progress-agentic-rag-ci-db \
+            -e WORDPRESS_DB_USER=wordpress \
+            -e WORDPRESS_DB_PASSWORD=wordpress \
+            -e WORDPRESS_DB_NAME=wordpress \
+            -e WP_PATH=/var/www/html \
+            -e WP_URL=http://progress-agentic-rag-ci-wordpress \
+            -e PLUGIN_CHECK_TARGET=progress-agentic-rag-connector/progress-agentic-rag.php \
+            -v progress-agentic-rag-ci-wp:/var/www/html \
+            -v "$PWD/build/progress-agentic-rag-connector":/var/www/html/wp-content/plugins/progress-agentic-rag-connector:ro \
+            -v "$PWD/docker/scripts/run-plugin-check.sh":/run-plugin-check.sh:ro \
+            wordpress:cli \
+            sh -c 'wp plugin activate progress-agentic-rag-connector/progress-agentic-rag.php --allow-root --path=/var/www/html --url=http://progress-agentic-rag-ci-wordpress && sh /run-plugin-check.sh'
