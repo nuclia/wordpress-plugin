@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! defined( 'PROGRESS_AGENTIC_RAG_VERSION' ) ) {
 	define( 'PROGRESS_AGENTIC_RAG_VERSION', '1.0.0' );
-	define( 'PROGRESS_AGENTIC_RAG_MIN_PHP_VERSION', '8.1' );
+	define( 'PROGRESS_AGENTIC_RAG_MIN_PHP_VERSION', '8.2' );
 	define( 'PROGRESS_AGENTIC_RAG_MIN_WP_VERSION', '6.8' );
 	define( 'PROGRESS_AGENTIC_RAG_FILE', dirname( __DIR__, 2 ) . '/progress-agentic-rag.php' );
 	define( 'PROGRESS_AGENTIC_RAG_PATH', dirname( __DIR__, 2 ) . '/' );

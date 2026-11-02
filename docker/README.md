@@ -51,7 +51,8 @@ From your WordPress dashboard:
 ### Minimum Requirements
 
 - WordPress 6.8+
-- PHP 8.1+ (PHP 8.3 recommended)
+- PHP 8.2+ (PHP 8.3 recommended)
+- Patched PHP: 8.2.35, 8.3.36, 8.4.27, 8.5.12 or later fix the critical "php2shell" RCE vulnerabilities (CVE-2026-109618, CVE-2026-109619). PHP 8.1 and earlier no longer receive security fixes.
 - MySQL 5.0+ (MySQL 5.6+ recommended)
 - cURL PHP extension
 - mbstring PHP extension
