@@ -3,8 +3,8 @@ Contributors: progresssoftware
 Tags: search, ai, knowledge-base, rag, indexing
 Requires at least: 6.8
 Tested up to: 7.1
-Stable tag: 1.0.3
-Requires PHP: 8.1
+Stable tag: 1.1.0
+Requires PHP: 8.2
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -68,6 +68,13 @@ value is passed as the second argument.
     }, 10, 2 );
 
 == Changelog ==
+
+= 1.1.0 =
+
+* Breaking: minimum PHP raised from 8.1 to 8.2. PHP 8.1 no longer receives security
+  fixes, including for the critical "php2shell" RCE vulnerabilities (CVE-2026-109618,
+  CVE-2026-109619). Update to PHP 8.2.35, 8.3.36, 8.4.27, 8.5.12 or later (8.3+ recommended).
+* Dev: PHP lint and PHPUnit in CI now run on PHP 8.3.
 
 = 1.0.3 =
 
