@@ -76,11 +76,14 @@ final class Scheduler {
 	 */
 	public function schedule_single_action( int $timestamp, string $hook, array $args, string $group ): bool {
 		if ( function_exists( 'as_schedule_single_action' ) ) {
-			as_schedule_single_action( $timestamp, $hook, $args, $group );
-			return true;
+			return (int) as_schedule_single_action( $timestamp, $hook, $args, $group ) > 0;
 		}
 
 		return false;
+	}
+
+	public function has_action( string $hook, array $args, string $group ): bool {
+		return function_exists( 'as_has_scheduled_action' ) && as_has_scheduled_action( $hook, $args, $group );
 	}
 
 	/**

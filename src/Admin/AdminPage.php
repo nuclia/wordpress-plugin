@@ -43,6 +43,7 @@ final class AdminPage {
 		add_action( 'admin_post_progress_agentic_rag_save_widget_appearance', [ $this, 'save_widget_appearance_settings' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_manual_sync_start', [ $this, 'start_manual_sync' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_manual_sync_status', [ $this, 'manual_sync_status' ] );
+		add_action( 'wp_ajax_progress_agentic_rag_manual_sync_cancel', [ $this, 'cancel_manual_sync' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_background_sync_status', [ $this, 'background_sync_status' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_delete_synced_resources', [ $this, 'delete_synced_resources' ] );
 		add_action( 'wp_ajax_progress_agentic_rag_delete_synced_resources_status', [ $this, 'delete_synced_resources_status' ] );
@@ -115,17 +116,19 @@ final class AdminPage {
 					'deleteCurrentLabel'     => __( 'Current resource', 'progress-agentic-rag-connector' ),
 					'deleteRunning'          => __( 'Delete in progress', 'progress-agentic-rag-connector' ),
 					'deleting'               => __( 'Preparing synced resource deletion.', 'progress-agentic-rag-connector' ),
-					'failed'                 => __( 'Manual sync could not start.', 'progress-agentic-rag-connector' ),
+					'failed'                 => __( 'Sync could not start.', 'progress-agentic-rag-connector' ),
 					'running'                => __( 'Sync in progress', 'progress-agentic-rag-connector' ),
-					'syncModalLabel'         => __( 'Manual sync', 'progress-agentic-rag-connector' ),
+					'syncModalLabel'         => __( 'Sync', 'progress-agentic-rag-connector' ),
 					'syncModalTitle'         => __( 'Syncing selected content', 'progress-agentic-rag-connector' ),
 					'syncTotalLabel'         => __( 'Total entities', 'progress-agentic-rag-connector' ),
 					'syncDoneLabel'          => __( 'Synced', 'progress-agentic-rag-connector' ),
 					'syncCurrentLabel'       => __( 'Current entity', 'progress-agentic-rag-connector' ),
-					'sync'                   => __( 'Sync manually', 'progress-agentic-rag-connector' ),
+					'sync'                   => __( 'Sync', 'progress-agentic-rag-connector' ),
+					'syncFinished'           => __( 'Sync finished', 'progress-agentic-rag-connector' ),
 					'reprocessFailed'        => __( 'Label reprocessing could not start.', 'progress-agentic-rag-connector' ),
-					'starting'               => __( 'Preparing manual sync.', 'progress-agentic-rag-connector' ),
-					'complete'               => __( 'Manual sync complete.', 'progress-agentic-rag-connector' ),
+					'starting'               => __( 'Preparing sync.', 'progress-agentic-rag-connector' ),
+					'pollInterrupted'        => __( 'Connection interrupted. Background sync continues; reconnecting…', 'progress-agentic-rag-connector' ),
+					'complete'               => __( 'Sync complete.', 'progress-agentic-rag-connector' ),
 					'mappingSelectLabelset'  => __( 'Select a labelset', 'progress-agentic-rag-connector' ),
 					'mappingRemove'          => __( 'Remove', 'progress-agentic-rag-connector' ),
 					'mappingLabelset'        => __( 'Labelset', 'progress-agentic-rag-connector' ),
@@ -164,7 +167,10 @@ final class AdminPage {
 			$token_status_label = $this->settings->get_api_is_reachable() ? __( 'Saved', 'progress-agentic-rag-connector' ) : __( 'Stored, unverified', 'progress-agentic-rag-connector' );
 		}
 
+		$manual_sync_status = $this->manual_sync->status();
+
 		require_once PROGRESS_AGENTIC_RAG_PATH . 'templates/admin/page-open.php';
+		require PROGRESS_AGENTIC_RAG_PATH . 'templates/admin/sync-banner.php';
 		$this->render_tabs( $active_tab );
 		if ( self::TAB_CONNECTION === $active_tab ) {
 			$this->render_connection_settings();
@@ -182,6 +188,7 @@ final class AdminPage {
 			$this->render_indexation();
 		}
 		$this->render_updated_notice();
+		require PROGRESS_AGENTIC_RAG_PATH . 'templates/admin/manual-sync-modal.php';
 		require_once PROGRESS_AGENTIC_RAG_PATH . 'templates/admin/page-close.php';
 	}
 
@@ -200,10 +207,11 @@ final class AdminPage {
 		$this->settings->update_connection_settings( $zone, $kbid, $account_id, $token );
 		$connected = $this->validate_connection_settings();
 		$this->settings->set_api_is_reachable( $connected );
+		$sync_started = false;
 		if ( $connected ) {
-			$this->manual_sync->ensure_automatic_sync( true );
+			$sync_started = $this->start_sync_after_save();
 		}
-		$this->redirect_to_tab( self::TAB_CONNECTION, $connected ? 'connected' : 'failed' );
+		$this->redirect_to_tab( self::TAB_CONNECTION, $connected ? 'connected' : 'failed', $sync_started );
 	}
 
 	public function save_indexation_settings(): void {
@@ -230,8 +238,7 @@ final class AdminPage {
 
 		$this->settings->update_indexable_post_types( $selected );
 		$this->manual_sync->cancel_post_type_sync( array_values( array_diff( $previous, $selected ) ) );
-		$this->manual_sync->ensure_automatic_sync( true );
-		$this->redirect_to_tab( self::TAB_INDEXATION );
+		$this->redirect_to_tab( self::TAB_INDEXATION, '', $this->start_sync_after_save() );
 	}
 
 	public function save_taxonomy_labeling_settings(): void {
@@ -244,8 +251,7 @@ final class AdminPage {
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce checked above; SettingsRepository sanitizes the nested map.
 		$raw_taxonomy_map = isset( $_POST[ SettingsRepository::OPTION_TAXONOMY_LABEL_MAP ] ) && is_array( $_POST[ SettingsRepository::OPTION_TAXONOMY_LABEL_MAP ] ) ? wp_unslash( $_POST[ SettingsRepository::OPTION_TAXONOMY_LABEL_MAP ] ) : [];
 		$this->settings->update_taxonomy_label_map( $raw_taxonomy_map );
-		$this->manual_sync->ensure_automatic_sync( true );
-		$this->redirect_to_tab( self::TAB_TAXONOMY_LABELING );
+		$this->redirect_to_tab( self::TAB_TAXONOMY_LABELING, '', $this->start_sync_after_save() );
 	}
 
 	public function save_widget_appearance_settings(): void {
@@ -304,6 +310,18 @@ final class AdminPage {
 		wp_send_json_success( $this->manual_sync->status() );
 	}
 
+	public function cancel_manual_sync(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => __( 'You do not have permission to cancel sync.', 'progress-agentic-rag-connector' ) ], 403 );
+		}
+		check_ajax_referer( 'progress_agentic_rag_manual_sync' );
+		$result = $this->manual_sync->cancel_manual_sync();
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( [ 'message' => sanitize_text_field( $result->get_error_message() ) ], 400 );
+		}
+		wp_send_json_success( $result );
+	}
+
 	public function background_sync_status(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( [ 'message' => __( 'You do not have permission to view automatic sync status.', 'progress-agentic-rag-connector' ) ], 403 );
@@ -311,7 +329,7 @@ final class AdminPage {
 
 		check_ajax_referer( 'progress_agentic_rag_manual_sync' );
 
-		wp_send_json_success( $this->manual_sync->ensure_automatic_sync() );
+		wp_send_json_success( $this->manual_sync->background_sync_status() );
 	}
 
 	public function delete_synced_resources(): void {
@@ -528,11 +546,13 @@ final class AdminPage {
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Connection status is read-only redirect state.
 		$connection_status = isset( $_GET['connection-status'] ) ? sanitize_key( wp_unslash( $_GET['connection-status'] ) ) : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Notice flag is read-only redirect state.
+		$sync_note = isset( $_GET['sync-started'] ) ? ' ' . __( 'A content sync has started in the background. You can follow its progress at the top of this page.', 'progress-agentic-rag-connector' ) : '';
 
 		if ( 'connected' === $connection_status ) {
 			$notice_type    = 'success';
 			$notice_role    = 'status';
-			$notice_message = __( 'Connection settings saved. Progress Agentic RAG validated the connection successfully.', 'progress-agentic-rag-connector' );
+			$notice_message = __( 'Connection settings saved. Progress Agentic RAG validated the connection successfully.', 'progress-agentic-rag-connector' ) . $sync_note;
 			require_once PROGRESS_AGENTIC_RAG_PATH . 'templates/admin/notice.php';
 			return;
 		}
@@ -547,7 +567,7 @@ final class AdminPage {
 
 		$notice_type    = 'success';
 		$notice_role    = 'status';
-		$notice_message = __( 'Settings saved.', 'progress-agentic-rag-connector' );
+		$notice_message = __( 'Settings saved.', 'progress-agentic-rag-connector' ) . $sync_note;
 		require_once PROGRESS_AGENTIC_RAG_PATH . 'templates/admin/notice.php';
 	}
 
@@ -603,7 +623,7 @@ final class AdminPage {
 		$delete_status             = $this->manual_sync->delete_status();
 		$delete_running            = 'running' === ( $delete_status['status'] ?? '' );
 		$manual_sync_disabled      = 'running' !== ( $manual_sync_status['status'] ?? '' ) && ( ! $api_connected || ! $scheduler_available || $delete_running );
-		$manual_sync_button_text   = __( 'Sync manually', 'progress-agentic-rag-connector' );
+		$manual_sync_button_text   = __( 'Sync', 'progress-agentic-rag-connector' );
 		if ( 'running' === ( $manual_sync_status['status'] ?? '' ) ) {
 			$manual_sync_button_text = sprintf(
 				/* translators: 1: processed entity count, 2: total entity count, 3: completion percent. */
@@ -1176,13 +1196,24 @@ final class AdminPage {
 		);
 	}
 
-	private function redirect_to_tab( string $tab, string $connection_status = '' ): void {
+	private function start_sync_after_save(): bool {
+		$was_running = 'running' === ( $this->manual_sync->status()['status'] ?? '' );
+		$this->manual_sync->ensure_automatic_sync( true );
+
+		return ! $was_running && 'running' === ( $this->manual_sync->status()['status'] ?? '' );
+	}
+
+	private function redirect_to_tab( string $tab, string $connection_status = '', bool $sync_started = false ): void {
 		$args = [
 			'progress-agentic-rag-updated' => 'true',
 		];
 
 		if ( '' !== $connection_status ) {
 			$args['connection-status'] = $connection_status;
+		}
+
+		if ( $sync_started ) {
+			$args['sync-started'] = '1';
 		}
 
 		wp_safe_redirect(

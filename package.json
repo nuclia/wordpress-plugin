@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test:e2e": "playwright test -c playwright.config.ts"
+    "test:e2e": "playwright test -c playwright.config.ts",
+    "test:scaling": "sh docker/scripts/run-scaling.sh"
   },
   "devDependencies": {
     "@playwright/test": "1.61.0",

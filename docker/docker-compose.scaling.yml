@@ -1,0 +1,63 @@
+name: progress-agentic-rag-scaling
+
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: scaling-only
+      MYSQL_ROOT_PASSWORD: scaling-root-only
+    volumes:
+      - scaling-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  wordpress:
+    image: wordpress:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: &wp-environment
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: scaling-only
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_CONFIG_EXTRA: |
+        define('DISABLE_WP_CRON', true);
+        define('PROGRESS_AGENTIC_RAG_SCALING_TESTS', true);
+    volumes: &wp-volumes
+      - scaling-wp:/var/www/html
+      - ..:/var/www/html/wp-content/plugins/progress-agentic-rag:ro
+      - ../tests/scaling/fixtures/scaling.php:/var/www/html/wp-content/mu-plugins/scaling.php:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost/wp-login.php"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  setup:
+    image: wordpress:cli
+    user: "0"
+    depends_on:
+      wordpress:
+        condition: service_healthy
+    environment: *wp-environment
+    volumes: *wp-volumes
+    entrypoint: ["sh", "/var/www/html/wp-content/plugins/progress-agentic-rag/docker/scripts/setup-scaling.sh"]
+
+  tests:
+    image: mcr.microsoft.com/playwright:v1.61.0-noble
+    working_dir: /plugin
+    environment:
+      WP_BASE_URL: http://wordpress
+    volumes:
+      - ..:/plugin
+    command: ["sh", "-c", "npx --no-install playwright test -c playwright.scaling.config.ts"]
+
+volumes:
+  scaling-db:
+  scaling-wp:

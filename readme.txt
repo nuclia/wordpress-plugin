@@ -74,6 +74,14 @@ value is passed as the second argument.
 * Breaking: minimum PHP raised from 8.1 to 8.2. PHP 8.1 no longer receives security
   fixes, including for the critical "php2shell" RCE vulnerabilities (CVE-2026-109618,
   CVE-2026-109619). Update to PHP 8.2.35, 8.3.36, 8.4.27, 8.5.12 or later (8.3+ recommended).
+* Fix: Sync no longer times out (504) or hits the Progress API rate limit (429) on sites with many
+  resources. The resource list is now paginated correctly, the sync status poll is read-only, and
+  saving settings or clicking Sync starts a resumable background run instead of scanning the whole
+  knowledge base inside one web request. A conflict on an existing resource is resolved with a
+  single lookup by slug.
+* Improved: A progress banner on every plugin tab shows the sync state. The button is now labelled
+  "Sync", shows a spinner while a run is active, and opens details with a Cancel option.
+* Improved: Rate-limit responses now show "Rate limit reached; retry shortly" instead of a generic lookup error.
 * Dev: PHP lint and PHPUnit in CI now run on PHP 8.3.
 
 = 1.0.3 =

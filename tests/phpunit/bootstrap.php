@@ -60,11 +60,19 @@ $GLOBALS['progress_agentic_rag_test_acf_fields'] = [];
 
 if ( ! class_exists( 'WP_Error' ) ) {
 	class WP_Error {
-		public function __construct( private readonly string $code = '', private readonly string $message = '' ) {
+		public function __construct( private readonly string $code = '', private readonly string $message = '', private readonly mixed $data = null ) {
 		}
 
 		public function get_error_message(): string {
 			return $this->message;
+		}
+
+		public function get_error_code(): string {
+			return $this->code;
+		}
+
+		public function get_error_data(): mixed {
+			return $this->data;
 		}
 	}
 }
@@ -144,6 +152,9 @@ if ( ! class_exists( 'ProgressAgenticRagTestWpdb' ) ) {
 		}
 
 		public function get_var( string $query ): mixed {
+			if ( str_contains( $query, 'GET_LOCK(' ) || str_contains( $query, 'RELEASE_LOCK(' ) ) {
+				return '1';
+			}
 			return $this->var;
 		}
 
@@ -653,7 +664,8 @@ if ( ! function_exists( 'wp_remote_request' ) ) {
 		];
 
 		if ( ! empty( $GLOBALS['progress_agentic_rag_test_http_responses'] ) ) {
-			return array_shift( $GLOBALS['progress_agentic_rag_test_http_responses'] );
+			$response = array_shift( $GLOBALS['progress_agentic_rag_test_http_responses'] );
+			return is_callable( $response ) ? $response( $url, $args ) : $response;
 		}
 
 		return [
@@ -703,6 +715,24 @@ if ( ! function_exists( 'wp_remote_retrieve_headers' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_remote_retrieve_header' ) ) {
+	function wp_remote_retrieve_header( mixed $response, string $name ): string {
+		return (string) ( array_change_key_case( wp_remote_retrieve_headers( $response ) )[ strtolower( $name ) ] ?? '' );
+	}
+}
+
+if ( ! function_exists( 'wp_next_scheduled' ) ) {
+	function wp_next_scheduled( string $hook ): int|false {
+		return $GLOBALS['progress_agentic_rag_test_cron'][ $hook ] ?? false;
+	}
+	function wp_schedule_single_event( int $timestamp, string $hook ): bool {
+		$GLOBALS['progress_agentic_rag_test_cron'][ $hook ] = $timestamp;
+		return true;
+	}
+}
+
+defined( 'MINUTE_IN_SECONDS' ) || define( 'MINUTE_IN_SECONDS', 60 );
+
 if ( ! function_exists( 'wp_generate_uuid4' ) ) {
 	function wp_generate_uuid4(): string {
 		return '00000000-0000-4000-8000-' . str_pad( (string) ( count( $GLOBALS['progress_agentic_rag_test_scheduled_actions'] ) + 1 ), 12, '0', STR_PAD_LEFT );
@@ -727,6 +757,17 @@ if ( ! function_exists( 'as_schedule_single_action' ) ) {
 		];
 
 		return count( $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
+	}
+}
+
+if ( ! function_exists( 'as_has_scheduled_action' ) ) {
+	function as_has_scheduled_action( string $hook, array $args = [], string $group = '' ): bool {
+		foreach ( $GLOBALS['progress_agentic_rag_test_scheduled_actions'] as $action ) {
+			if ( $action['hook'] === $hook && $action['group'] === $group && $action['args'] === $args && in_array( $action['status'], [ 'pending', 'in-progress' ], true ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
 
@@ -759,7 +800,7 @@ if ( ! function_exists( 'as_unschedule_all_actions' ) ) {
 		$GLOBALS['progress_agentic_rag_test_scheduled_actions'] = array_values(
 			array_filter(
 				$GLOBALS['progress_agentic_rag_test_scheduled_actions'],
-				static fn ( array $action ): bool => $hook !== $action['hook'] || $group !== $action['group'] || ( null !== $args && $args !== $action['args'] )
+				static fn ( array $action ): bool => $hook !== $action['hook'] || ( '' !== $group && $group !== $action['group'] ) || ( null !== $args && $args !== $action['args'] )
 			)
 		);
 	}
