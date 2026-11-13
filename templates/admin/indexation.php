@@ -96,7 +96,7 @@ $background_percent = max( 0, min( 100, (int) ( $background_sync_status['percent
 			</div>
 			<div class="progress-agentic-rag__actions">
 				<button type="submit" class="progress-agentic-rag__button progress-agentic-rag__button--primary"><?php esc_html_e( 'Save indexation settings', 'progress-agentic-rag-connector' ); ?></button>
-				<button type="button" class="progress-agentic-rag__button progress-agentic-rag__button--secondary" data-progress-agentic-rag-manual-sync <?php disabled( $manual_sync_disabled ); ?>><?php echo esc_html( $manual_sync_button_text ); ?></button>
+				<button type="button" class="progress-agentic-rag__button progress-agentic-rag__button--secondary<?php echo 'running' === ( $manual_sync_status['status'] ?? '' ) ? ' progress-agentic-rag__button--busy' : ''; ?>" data-progress-agentic-rag-manual-sync <?php disabled( $manual_sync_disabled ); ?>><?php echo esc_html( $manual_sync_button_text ); ?></button>
 				<button type="button" class="progress-agentic-rag__button progress-agentic-rag__button--danger" data-progress-agentic-rag-delete-synced <?php disabled( $delete_disabled ); ?>><?php echo esc_html( $delete_button_text ); ?></button>
 			</div>
 		</form>
@@ -135,5 +135,4 @@ $background_percent = max( 0, min( 100, (int) ( $background_sync_status['percent
 		</p>
 	</aside>
 </div>
-<?php require_once PROGRESS_AGENTIC_RAG_PATH . 'templates/admin/manual-sync-modal.php'; ?>
 <?php // phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound ?>

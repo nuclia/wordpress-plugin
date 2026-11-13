@@ -390,7 +390,7 @@ final class ApiClientTest extends TestCase {
 				'response' => [
 					'code' => 200,
 				],
-				'body'     => '{"resources":[{"id":"rid-existing","slug":"100","title":"Knowledge Base Runbook 1","last_seqid":0}]}',
+				'body'     => '{"id":"rid-existing","slug":"100","title":"Knowledge Base Runbook 1","last_seqid":0}',
 			],
 			[
 				'response' => [
@@ -415,88 +415,49 @@ final class ApiClientTest extends TestCase {
 		self::assertTrue( $result );
 		self::assertCount( 3, $GLOBALS['progress_agentic_rag_test_http_requests'] );
 		self::assertSame( 'GET', $GLOBALS['progress_agentic_rag_test_http_requests'][1]['args']['method'] );
-		self::assertSame( 'https://europe-1.rag.progress.cloud/api/v1/kb/kb-123/resources?from=0&size=250', $GLOBALS['progress_agentic_rag_test_http_requests'][1]['url'] );
+		self::assertSame( 'https://europe-1.rag.progress.cloud/api/v1/kb/kb-123/slug/100', $GLOBALS['progress_agentic_rag_test_http_requests'][1]['url'] );
 		self::assertSame( 'https://europe-1.rag.progress.cloud/api/v1/kb/kb-123/resource/rid-existing/file/file/upload', $GLOBALS['progress_agentic_rag_test_http_requests'][2]['url'] );
 		self::assertSame( 'rid-existing', $GLOBALS['wpdb']->inserted[0]['data']['nuclia_rid'] );
 	}
 
-	public function test_recover_existing_resources_repairs_mappings_from_paginated_resource_list(): void {
-		$first_page = [];
-		for ( $i = 1; $i <= 250; $i++ ) {
-			$first_page[] = [
-				'id'   => 'rid-other-' . $i,
-				'slug' => 'other-' . $i,
-			];
-		}
-
+	public function test_conflict_lookup_uses_one_request_and_reports_a_missing_resource(): void {
 		$GLOBALS['progress_agentic_rag_test_http_responses'] = [
 			[
-				'response' => [
-					'code' => 200,
-				],
-				'body'     => json_encode( [ 'resources' => $first_page ] ),
+				'response' => [ 'code' => 409 ],
+				'body'     => '{"detail":"exists"}',
 			],
 			[
-				'response' => [
-					'code' => 200,
-				],
-				'body'     => '{"resources":[{"id":"rid-101","slug":"101","last_seqid":0},{"uuid":"rid-203","slug":"203","seqid":"seq-203"}]}',
+				'response' => [ 'code' => 404 ],
+				'body'     => '{"detail":"Resource does not exist"}',
 			],
 		];
 
-		$result = ( new ApiClient( new SettingsRepository() ) )->recover_existing_resources( [ 101, 203 ] );
+		$result = ( new ApiClient( new SettingsRepository() ) )->index_post( new WP_Post( [ 'ID' => 921 ] ) );
 
-		self::assertSame( 2, $result );
-		self::assertSame( 'https://europe-1.rag.progress.cloud/api/v1/kb/kb-123/resources?from=0&size=250', $GLOBALS['progress_agentic_rag_test_http_requests'][0]['url'] );
-		self::assertSame( 'https://europe-1.rag.progress.cloud/api/v1/kb/kb-123/resources?from=250&size=250', $GLOBALS['progress_agentic_rag_test_http_requests'][1]['url'] );
-		self::assertSame( 101, $GLOBALS['wpdb']->inserted[0]['data']['post_id'] );
-		self::assertSame( 'rid-101', $GLOBALS['wpdb']->inserted[0]['data']['nuclia_rid'] );
-		self::assertSame( '0', $GLOBALS['wpdb']->inserted[0]['data']['nuclia_seqid'] );
-		self::assertSame( 203, $GLOBALS['wpdb']->inserted[1]['data']['post_id'] );
-		self::assertSame( 'rid-203', $GLOBALS['wpdb']->inserted[1]['data']['nuclia_rid'] );
-		self::assertSame( 'seq-203', $GLOBALS['wpdb']->inserted[1]['data']['nuclia_seqid'] );
+		self::assertInstanceOf( WP_Error::class, $result );
+		self::assertSame( 'progress_agentic_rag_existing_resource_missing', $result->get_error_code() );
+		self::assertCount( 2, $GLOBALS['progress_agentic_rag_test_http_requests'] );
+		self::assertSame( [], $GLOBALS['wpdb']->inserted );
 	}
 
-	public function test_reconcile_synced_resources_clears_missing_upstream_mappings(): void {
-		$GLOBALS['wpdb']->results = [
-			(object) [
-				'post_id'      => '101',
-				'nuclia_rid'   => 'rid-old',
-				'nuclia_seqid' => 'seq-old',
-			],
-			(object) [
-				'post_id'      => '202',
-				'nuclia_rid'   => 'rid-missing',
-				'nuclia_seqid' => 'seq-missing',
-			],
-			(object) [
-				'post_id'      => '303',
-				'nuclia_rid'   => 'rid-303',
-				'nuclia_seqid' => 'seq-303',
-			],
-		];
-		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
-			'response' => [
-				'code' => 200,
-			],
-			'body'     => '{"resources":[{"id":"rid-new","slug":"101","seqid":"seq-new"},{"id":"rid-303","slug":"303","seqid":"seq-303"}]}',
-		];
-
-		$result = ( new ApiClient( new SettingsRepository() ) )->reconcile_synced_resources();
-
-		self::assertSame(
+	public function test_conflict_lookup_identifies_rate_limiting(): void {
+		$GLOBALS['progress_agentic_rag_test_http_responses'] = [
 			[
-				'checked' => 3,
-				'removed' => 1,
-				'updated' => 1,
+				'response' => [ 'code' => 409 ],
+				'body'     => '{"detail":"exists"}',
 			],
-			$result
-		);
-		self::assertSame( [ 'post_id' => 101 ], $GLOBALS['wpdb']->deleted[0]['where'] );
-		self::assertSame( [ 'post_id' => 202 ], $GLOBALS['wpdb']->deleted[1]['where'] );
-		self::assertSame( 101, $GLOBALS['wpdb']->inserted[0]['data']['post_id'] );
-		self::assertSame( 'rid-new', $GLOBALS['wpdb']->inserted[0]['data']['nuclia_rid'] );
-		self::assertSame( 'seq-new', $GLOBALS['wpdb']->inserted[0]['data']['nuclia_seqid'] );
+			[
+				'response' => [ 'code' => 429 ],
+				'body'     => '{"detail":{"period":"minute","limit":2400}}',
+			],
+		];
+
+		$result = ( new ApiClient( new SettingsRepository() ) )->index_post( new WP_Post( [ 'ID' => 922 ] ) );
+
+		self::assertInstanceOf( WP_Error::class, $result );
+		self::assertSame( 'progress_agentic_rag_rate_limited', $result->get_error_code() );
+		self::assertStringContainsString( 'rate limit', $result->get_error_message() );
+		self::assertCount( 2, $GLOBALS['progress_agentic_rag_test_http_requests'] );
 	}
 
 	public function test_get_labelsets_fetches_and_caches_embedded_labels(): void {
@@ -691,21 +652,6 @@ final class ApiClientTest extends TestCase {
 		self::assertSame( [ 'Stale' ], $client->get_labelsets() );
 	}
 
-	public function test_recover_existing_resources_ignores_invalid_ids_and_empty_matches(): void {
-		$client = new ApiClient( new SettingsRepository() );
-
-		self::assertSame( 0, $client->recover_existing_resources( [ 0, 'bad' ] ) );
-
-		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
-			'response' => [
-				'code' => 200,
-			],
-			'body'     => '{"resources":[{"slug":"905"}]}',
-		];
-
-		self::assertSame( 0, $client->recover_existing_resources( [ 905 ] ) );
-	}
-
 	public function test_index_conflict_without_existing_resource_and_attachment_upload_failure_return_errors(): void {
 		$GLOBALS['progress_agentic_rag_test_http_responses'] = [
 			[
@@ -825,17 +771,6 @@ final class ApiClientTest extends TestCase {
 		self::assertSame( [ 'Text', 'Uri', 'Related', 'Name', 'ID' ], $client->get_labelset_labels( 'Variants' ) );
 	}
 
-	public function test_recover_existing_resources_returns_lookup_errors(): void {
-		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
-			'response' => [
-				'code' => 500,
-			],
-			'body'     => '{"detail":"Lookup failed"}',
-		];
-
-		self::assertInstanceOf( WP_Error::class, ( new ApiClient( new SettingsRepository() ) )->recover_existing_resources( [ 909 ] ) );
-	}
-
 	public function test_taxonomy_classifications_skip_invalid_maps_and_accept_scalar_labels(): void {
 		$GLOBALS['progress_agentic_rag_test_taxonomies']['category'] = true;
 		$GLOBALS['progress_agentic_rag_test_taxonomies']['post_tag'] = true;
@@ -951,7 +886,7 @@ final class ApiClientTest extends TestCase {
 					'response' => [
 						'code' => 200,
 					],
-					'body'     => '{"resources":[{"id":"rid-existing","slug":"912","last_seqid":"seq-old"}]}',
+					'body'     => '{"id":"rid-existing","slug":"912","last_seqid":"seq-old"}',
 				],
 				new WP_Error( 'http_failed', 'Upload network failed' ),
 			];
@@ -980,7 +915,7 @@ final class ApiClientTest extends TestCase {
 					'response' => [
 						'code' => 200,
 					],
-					'body'     => '{"resources":[{"id":"rid-existing","slug":"915","last_seqid":"seq-old"}]}',
+					'body'     => '{"id":"rid-existing","slug":"915","last_seqid":"seq-old"}',
 				],
 				[
 					'response' => [
@@ -1179,18 +1114,9 @@ final class ApiClientTest extends TestCase {
 		];
 
 		self::assertSame( [ 'Identifier' ], $client->get_labelsets() );
-
-		update_option( SettingsRepository::OPTION_ZONE, 'bad zone' );
-
-		self::assertInstanceOf( WP_Error::class, $client->recover_existing_resources( [ 919 ] ) );
-
-		update_option( SettingsRepository::OPTION_ZONE, 'europe-1' );
-		$GLOBALS['progress_agentic_rag_test_http_responses'][] = new WP_Error( 'http_failed', 'Lookup failed' );
-
-		self::assertInstanceOf( WP_Error::class, $client->recover_existing_resources( [ 920 ] ) );
 	}
 
-	public function test_private_lookup_helpers_cover_empty_inputs(): void {
+	public function test_private_lookup_helper_requires_a_slug_and_connection(): void {
 		$client = new ApiClient( new SettingsRepository() );
 
 		$single_ref = new ReflectionMethod( $client, 'find_resource_by_slug' );
@@ -1198,9 +1124,23 @@ final class ApiClientTest extends TestCase {
 
 		self::assertInstanceOf( WP_Error::class, $single_ref->invoke( $client, '' ) );
 
-		$many_ref = new ReflectionMethod( $client, 'find_resources_by_slugs' );
-		$many_ref->setAccessible( true );
+		update_option( SettingsRepository::OPTION_ZONE, 'bad zone' );
 
-		self::assertSame( [], $many_ref->invoke( $client, [ '', '   ' ] ) );
+		self::assertInstanceOf( WP_Error::class, $single_ref->invoke( $client, '919' ) );
+		self::assertSame( [], $GLOBALS['progress_agentic_rag_test_http_requests'] );
+	}
+
+	public function test_slug_lookup_only_reports_missing_for_404_and_errors_on_a_200_without_an_id(): void {
+		$client = new ApiClient( new SettingsRepository() );
+
+		$GLOBALS['progress_agentic_rag_test_http_responses'] = [
+			[ 'response' => [ 'code' => 404 ], 'body' => '{"detail":"Resource does not exist"}' ],
+			[ 'response' => [ 'code' => 200 ], 'body' => '<html>Bad gateway page</html>' ],
+			[ 'response' => [ 'code' => 200 ], 'body' => '{"id":"rid-1","last_seqid":4}' ],
+		];
+
+		self::assertSame( [ 'rid' => '', 'seqid' => '' ], $client->find_resource_by_slug( '5' ) );
+		self::assertInstanceOf( WP_Error::class, $client->find_resource_by_slug( '5' ) );
+		self::assertSame( [ 'rid' => 'rid-1', 'seqid' => '4' ], $client->find_resource_by_slug( '5' ) );
 	}
 }
