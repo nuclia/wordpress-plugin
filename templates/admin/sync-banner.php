@@ -7,6 +7,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Template locals are scoped by the including admin renderer.
+
 $banner_running = 'running' === ( $manual_sync_status['status'] ?? '' );
 $banner_percent = max( 0, min( 100, (int) ( $manual_sync_status['percent'] ?? 0 ) ) );
 ?>

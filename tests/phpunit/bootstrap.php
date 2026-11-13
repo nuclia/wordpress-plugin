@@ -134,7 +134,7 @@ if ( ! class_exists( 'ProgressAgenticRagTestWpdb' ) ) {
 		public mixed $var = '';
 
 		public function prepare( string $query, mixed ...$args ): string {
-			return vsprintf( str_replace( [ '%s', '%d' ], [ "'%s'", '%d' ], $query ), $args );
+			return vsprintf( str_replace( [ '%s', '%d', '%i' ], [ "'%s'", '%d', '`%s`' ], $query ), $args );
 		}
 
 		public function delete( string $table, array $where, array $formats = [] ): bool {
