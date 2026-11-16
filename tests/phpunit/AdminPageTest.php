@@ -112,7 +112,7 @@ final class AdminPageTest extends TestCase {
 				'total'       => 2,
 				'completed'   => 1,
 				'failed'      => 1,
-				'message'     => 'Manual sync complete.',
+				'message'     => 'Sync complete.',
 				'finished_at' => 20,
 			]
 		);
@@ -299,7 +299,9 @@ final class AdminPageTest extends TestCase {
 		$output = ob_get_clean();
 
 		self::assertStringContainsString( 'Indexation', $output );
-		self::assertStringContainsString( 'Sync manually', $output );
+		self::assertStringContainsString( '>Sync</button>', $output );
+		self::assertStringContainsString( 'data-progress-agentic-rag-sync-banner hidden', $output );
+		self::assertStringContainsString( 'data-progress-agentic-rag-sync-modal', $output );
 
 		$GLOBALS['progress_agentic_rag_test_current_user_can'] = false;
 		ob_start();
@@ -513,6 +515,7 @@ final class AdminPageTest extends TestCase {
 			self::fail( 'Expected redirect.' );
 		} catch ( ProgressAgenticRagTestRedirect $redirect ) {
 			self::assertStringContainsString( 'tab=indexation', $redirect->location );
+			self::assertStringContainsString( 'sync-started=1', $redirect->location );
 		}
 
 		self::assertSame(
@@ -522,6 +525,26 @@ final class AdminPageTest extends TestCase {
 			],
 			get_option( SettingsRepository::OPTION_INDEXABLE_POST_TYPES )
 		);
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_render_shows_sync_banner_and_started_notice_on_every_tab(): void {
+		update_option( SettingsRepository::OPTION_MANUAL_SYNC_STATE, [ 'status' => 'running', 'message' => 'Scanning the knowledge box.', 'percent' => 30 ] );
+		$_GET = [
+			'tab'                          => 'diagnostics',
+			'progress-agentic-rag-updated' => 'true',
+			'sync-started'                 => '1',
+		];
+
+		ob_start();
+		$this->admin_page()->render();
+		$output = ob_get_clean();
+
+		self::assertStringNotContainsString( 'data-progress-agentic-rag-sync-banner hidden', $output );
+		self::assertStringContainsString( 'data-progress-agentic-rag-banner-message>Sync in progress', $output );
+		self::assertStringContainsString( 'data-progress-agentic-rag-sync-modal', $output );
+		self::assertStringContainsString( 'A content sync has started in the background.', $output );
 	}
 
 	public function test_save_indexation_settings_cancels_removed_post_type_jobs(): void {
@@ -650,6 +673,33 @@ final class AdminPageTest extends TestCase {
 		self::assertSame( '#123456', get_option( SettingsRepository::OPTION_WIDGET_APPEARANCE )['accent_color'] );
 		self::assertSame( 18, get_option( SettingsRepository::OPTION_WIDGET_APPEARANCE )['font_size'] );
 		self::assertSame( 'system', get_option( SettingsRepository::OPTION_WIDGET_APPEARANCE )['font_family'] );
+	}
+
+	public function test_background_status_polls_do_not_scan_or_schedule_unindexed_posts(): void {
+		update_option( SettingsRepository::OPTION_INDEXABLE_POST_TYPES, [ 'post' => 1 ] );
+		$GLOBALS['wpdb'] = new class() extends ProgressAgenticRagTestWpdb {
+			public function get_results( string $query ): array {
+				if ( str_contains( $query, 'SELECT post_id, nuclia_rid' ) ) {
+					return [ (object) [ 'post_id' => 31, 'nuclia_rid' => 'rid-31' ] ];
+				}
+
+				return [ (object) [ 'ID' => 32 ] ];
+			}
+		};
+
+		for ( $poll = 0; $poll < 3; $poll++ ) {
+			try {
+				$this->admin_page()->background_sync_status();
+				self::fail( 'Expected JSON success.' );
+			} catch ( ProgressAgenticRagTestJsonResponse $response ) {
+				self::assertTrue( $response->success );
+				self::assertSame( 'idle', $response->data['status'] );
+			}
+		}
+
+		self::assertSame( [], $GLOBALS['progress_agentic_rag_test_http_requests'] );
+		self::assertSame( [], $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
+		self::assertSame( [], $GLOBALS['wpdb']->deleted );
 	}
 
 	public function test_ajax_handlers_return_json_success_and_errors(): void {
@@ -795,9 +845,11 @@ final class AdminPageTest extends TestCase {
 			self::fail( 'Expected JSON success.' );
 		} catch ( ProgressAgenticRagTestJsonResponse $response ) {
 			self::assertTrue( $response->success );
-			self::assertSame( 'complete', $response->data['status'] );
+			self::assertSame( 'running', $response->data['status'] );
+			self::assertTrue( $response->data['preparing'] );
 		}
 
+		update_option( SettingsRepository::OPTION_MANUAL_SYNC_STATE, [] );
 		update_option(
 			SettingsRepository::OPTION_DELETE_SYNC_STATE,
 			[

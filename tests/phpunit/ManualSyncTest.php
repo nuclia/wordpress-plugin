@@ -8,6 +8,8 @@
 use PHPUnit\Framework\TestCase;
 use ProgressAgenticRag\Api\ApiClient;
 use ProgressAgenticRag\Indexing\ManualSync;
+use ProgressAgenticRag\Indexing\ManualPreparation;
+use ProgressAgenticRag\Indexing\PreparationStore;
 use ProgressAgenticRag\Settings\SettingsRepository;
 
 final class ManualSyncTest extends TestCase {
@@ -71,19 +73,23 @@ final class ManualSyncTest extends TestCase {
 		);
 
 		$settings = new SettingsRepository();
-		$sync     = new ManualSync( $settings, new ApiClient( $settings ) );
+		$sync     = new ManualSync( $settings, new ApiClient( $settings ), null, $this->preparation_store( [ 31, 32 ] ) );
 		$result   = $sync->start( [ 'post' ] );
 
 		self::assertSame( 'running', $result['status'] );
-		self::assertSame( 2, $result['total'] );
+		self::assertSame( 0, $result['total'] );
 		self::assertSame( 0, $result['processed'] );
-		self::assertSame( 'Waiting for the first entity.', $result['current'] );
-		self::assertSame( 'Sync in progress: 0 of 2 processed.', $result['message'] );
-		self::assertCount( 2, $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
-		self::assertSame( 'progress_agentic_rag_manual_sync_post', $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['hook'] );
-		self::assertSame( 'progress-agentic-rag-indexing', $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['group'] );
-		self::assertSame( 31, $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['args']['post_id'] );
-		self::assertSame( 'post', $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['args']['post_type'] );
+		self::assertTrue( $result['preparing'] );
+		self::assertSame( 0, $result['percent'] );
+		self::assertCount( 1, $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
+		self::assertSame( ManualPreparation::HOOK, $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['hook'] );
+		self::assertSame( [], $GLOBALS['progress_agentic_rag_test_http_requests'] );
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [ 'response' => [ 'code' => 200 ], 'body' => '{"resources":[]}' ];
+		$this->finish_preparation( $sync );
+		$jobs = array_values( array_filter( $GLOBALS['progress_agentic_rag_test_scheduled_actions'], static fn ( $action ) => ManualPreparation::POST_HOOK === $action['hook'] ) );
+		self::assertCount( 2, $jobs );
+		self::assertSame( 31, $jobs[0]['args']['post_id'] );
+		self::assertSame( 'post', $jobs[0]['args']['post_type'] );
 
 		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
 			'response' => [
@@ -95,7 +101,7 @@ final class ManualSyncTest extends TestCase {
 		$sync->process_single_post(
 			31,
 			'post',
-			$GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['args']['sync_id']
+			$jobs[0]['args']['sync_id']
 		);
 
 		$status  = $sync->status();
@@ -103,7 +109,7 @@ final class ManualSyncTest extends TestCase {
 
 		self::assertSame( 1, $status['completed'] );
 		self::assertSame( 'Post: Manual Sync Article', $status['current'] );
-		self::assertSame( 'https://europe-1.rag.progress.cloud/api/v1/kb/kb-123/resources?from=0&size=250', $GLOBALS['progress_agentic_rag_test_http_requests'][0]['url'] );
+		self::assertStringStartsWith( 'https://europe-1.rag.progress.cloud/api/v1/kb/kb-123/resources?page=0&size=', $GLOBALS['progress_agentic_rag_test_http_requests'][0]['url'] );
 		self::assertSame( 'POST', $request['args']['method'] );
 		self::assertSame( 'https://europe-1.rag.progress.cloud/api/v1/kb/kb-123/resources', $request['url'] );
 		self::assertSame( 'rid-31', $GLOBALS['wpdb']->inserted[0]['data']['nuclia_rid'] );
@@ -137,24 +143,7 @@ final class ManualSyncTest extends TestCase {
 		self::assertSame( [], $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
 	}
 
-	public function test_start_clears_stale_mapping_before_scheduling_manual_sync(): void {
-		$GLOBALS['wpdb'] = new class() extends ProgressAgenticRagTestWpdb {
-			private int $unindexed_calls = 0;
-
-			public function get_results( string $query ): array {
-				if ( str_contains( $query, 'post_id, nuclia_rid' ) ) {
-					return [
-						(object) [
-							'post_id'    => '33',
-							'nuclia_rid' => 'rid-stale',
-						],
-					];
-				}
-
-				$this->unindexed_calls++;
-				return 1 === $this->unindexed_calls ? [ (object) [ 'ID' => '33' ] ] : [];
-			}
-		};
+	public function test_preparation_applies_stale_mapping_scan_before_scheduling_manual_sync(): void {
 		$GLOBALS['progress_agentic_rag_test_posts'][33] = new WP_Post(
 			[
 				'ID'          => 33,
@@ -178,12 +167,17 @@ final class ManualSyncTest extends TestCase {
 			],
 		];
 
-		$result = ( new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) ) )->start( [ 'post' ] );
+		$store = $this->preparation_store( [ 33 ] );
+		$store->expects( self::once() )->method( 'apply_page' );
+		$sync = new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ), null, $store );
+		$sync->start( [ 'post' ] );
+		self::assertSame( [], $GLOBALS['wpdb']->deleted );
+		$result = $this->finish_preparation( $sync );
 
 		self::assertSame( 'running', $result['status'] );
 		self::assertSame( 1, $result['total'] );
-		self::assertSame( [ 'post_id' => 33 ], $GLOBALS['wpdb']->deleted[0]['where'] );
-		self::assertSame( 33, $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['args']['post_id'] );
+		$job = end( $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
+		self::assertSame( 33, $job['args']['post_id'] );
 	}
 
 	public function test_background_post_sync_schedules_and_indexes_publishable_post(): void {
@@ -234,154 +228,25 @@ final class ManualSyncTest extends TestCase {
 		self::assertSame( 100, $status['percent'] );
 	}
 
-	public function test_ensure_automatic_sync_schedules_selected_unindexed_content(): void {
-		$GLOBALS['wpdb']->results = [
-			(object) [
-				'ID' => '51',
-			],
-			(object) [
-				'ID' => '52',
-			],
-		];
-		$GLOBALS['progress_agentic_rag_test_posts'][51] = new WP_Post(
-			[
-				'ID'          => 51,
-				'post_title'  => 'Automatic One',
-				'post_type'   => 'post',
-				'post_status' => 'publish',
-			]
-		);
-		$GLOBALS['progress_agentic_rag_test_posts'][52] = new WP_Post(
-			[
-				'ID'          => 52,
-				'post_title'  => 'Automatic Two',
-				'post_type'   => 'post',
-				'post_status' => 'publish',
-			]
-		);
-
+	public function test_ensure_automatic_sync_starts_a_background_run_without_contacting_the_api(): void {
 		$settings = new SettingsRepository();
-		$sync     = new ManualSync( $settings, new ApiClient( $settings ) );
+		$sync     = new ManualSync( $settings, new ApiClient( $settings ), null, $this->preparation_store( [] ) );
 		$result   = $sync->ensure_automatic_sync();
 
 		self::assertSame( 'running', $result['status'] );
-		self::assertSame( 2, $result['total'] );
-		self::assertSame( 2, $result['pending'] );
-		self::assertSame( 2, $result['scheduled'] );
-		self::assertTrue( $result['is_active'] );
-		self::assertCount( 2, $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
-		self::assertSame( 'progress_agentic_rag_background_sync_post', $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['hook'] );
-		self::assertSame( 'progress-agentic-rag-background', $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['group'] );
-		self::assertSame( 51, $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['args']['post_id'] );
-		self::assertSame( 52, $GLOBALS['progress_agentic_rag_test_scheduled_actions'][1]['args']['post_id'] );
-		self::assertSame( $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['args']['background_id'], $GLOBALS['progress_agentic_rag_test_scheduled_actions'][1]['args']['background_id'] );
-	}
+		self::assertTrue( $result['preparing'] );
+		self::assertCount( 1, $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
+		self::assertSame( ManualPreparation::HOOK, $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['hook'] );
+		self::assertSame( [], $GLOBALS['progress_agentic_rag_test_http_requests'] );
+		self::assertSame( 'automatic', get_option( SettingsRepository::OPTION_MANUAL_SYNC_STATE )['trigger'] );
 
-	public function test_ensure_automatic_sync_recovers_existing_resources_before_scheduling(): void {
-		$GLOBALS['wpdb'] = new class() extends ProgressAgenticRagTestWpdb {
-			private int $get_results_calls = 0;
+		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [ 'response' => [ 'code' => 200 ], 'body' => '{"resources":[]}' ];
+		$this->finish_preparation( $sync );
 
-			public function get_results( string $query ): array {
-				if ( str_contains( $query, 'post_id, nuclia_rid' ) ) {
-					return [];
-				}
-
-				$this->get_results_calls++;
-
-				return 1 === $this->get_results_calls ? [ (object) [ 'ID' => '53' ] ] : [];
-			}
-		};
-		$GLOBALS['progress_agentic_rag_test_posts'][53] = new WP_Post(
-			[
-				'ID'          => 53,
-				'post_title'  => 'Recovered Automatic',
-				'post_type'   => 'post',
-				'post_status' => 'publish',
-			]
-		);
-		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
-			'response' => [
-				'code' => 200,
-			],
-			'body'     => '{"resources":[{"id":"rid-53","slug":"53","seqid":"seq-53"}]}',
-		];
-
-		$result = ( new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) ) )->ensure_automatic_sync();
-
-		self::assertSame( 0, $result['scheduled'] );
-		self::assertSame( 'rid-53', $GLOBALS['wpdb']->inserted[0]['data']['nuclia_rid'] );
-		self::assertSame( [], $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
-	}
-
-	public function test_ensure_automatic_sync_clears_stale_mapping_before_scheduling(): void {
-		$GLOBALS['wpdb'] = new class() extends ProgressAgenticRagTestWpdb {
-			private int $unindexed_calls = 0;
-
-			public function get_results( string $query ): array {
-				if ( str_contains( $query, 'post_id, nuclia_rid' ) ) {
-					return [
-						(object) [
-							'post_id'    => '54',
-							'nuclia_rid' => 'rid-stale',
-						],
-					];
-				}
-
-				$this->unindexed_calls++;
-				return 1 === $this->unindexed_calls ? [ (object) [ 'ID' => '54' ] ] : [];
-			}
-		};
-		$GLOBALS['progress_agentic_rag_test_posts'][54] = new WP_Post(
-			[
-				'ID'          => 54,
-				'post_title'  => 'Stale Automatic Article',
-				'post_type'   => 'post',
-				'post_status' => 'publish',
-			]
-		);
-		$GLOBALS['progress_agentic_rag_test_http_responses'] = [
-			[
-				'response' => [
-					'code' => 200,
-				],
-				'body'     => '{"resources":[]}',
-			],
-			[
-				'response' => [
-					'code' => 200,
-				],
-				'body'     => '{"resources":[]}',
-			],
-		];
-
-		$result = ( new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) ) )->ensure_automatic_sync();
-
-		self::assertSame( 'running', $result['status'] );
-		self::assertSame( 1, $result['scheduled'] );
-		self::assertSame( [ 'post_id' => 54 ], $GLOBALS['wpdb']->deleted[0]['where'] );
-		self::assertSame( 54, $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['args']['post_id'] );
+		self::assertSame( 'automatic_sync', $settings->get_sync_history()[0]['type'] );
 	}
 
 	public function test_ensure_automatic_sync_retries_stale_failed_state_without_failed_items(): void {
-		$GLOBALS['wpdb']->results = [
-			(object) [
-				'ID' => '54',
-			],
-		];
-		$GLOBALS['progress_agentic_rag_test_posts'][54] = new WP_Post(
-			[
-				'ID'          => 54,
-				'post_title'  => 'Retry Stale Automatic',
-				'post_type'   => 'post',
-				'post_status' => 'publish',
-			]
-		);
-		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
-			'response' => [
-				'code' => 200,
-			],
-			'body'     => '{"resources":[]}',
-		];
 		update_option(
 			SettingsRepository::OPTION_BACKGROUND_SYNC_STATE,
 			[
@@ -391,11 +256,11 @@ final class ManualSyncTest extends TestCase {
 			]
 		);
 
-		$result = ( new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) ) )->ensure_automatic_sync();
+		$settings = new SettingsRepository();
+		$result   = ( new ManualSync( $settings, new ApiClient( $settings ), null, $this->preparation_store( [] ) ) )->ensure_automatic_sync();
 
-		self::assertSame( 1, $result['scheduled'] );
 		self::assertSame( 'running', $result['status'] );
-		self::assertSame( 54, $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['args']['post_id'] );
+		self::assertSame( ManualPreparation::HOOK, $GLOBALS['progress_agentic_rag_test_scheduled_actions'][0]['hook'] );
 	}
 
 	public function test_ensure_automatic_sync_does_not_duplicate_active_background_jobs(): void {
@@ -496,6 +361,33 @@ final class ManualSyncTest extends TestCase {
 		self::assertSame( 61, $GLOBALS['progress_agentic_rag_test_scheduled_actions'][1]['args']['post_id'] );
 	}
 
+	public function test_background_sync_with_lost_jobs_stops_reporting_active_but_recent_runs_are_left_alone(): void {
+		$state = [
+			'id'         => 'background-lost',
+			'status'     => 'running',
+			'total'      => 4,
+			'completed'  => 3,
+			'failed'     => 0,
+			'message'    => 'Automatic background sync queued.',
+			'started_at' => time() - 7200,
+			'updated_at' => time() - 60,
+		];
+		update_option( SettingsRepository::OPTION_BACKGROUND_SYNC_STATE, $state );
+		$settings = new SettingsRepository();
+		$sync     = new ManualSync( $settings, new ApiClient( $settings ) );
+
+		self::assertSame( 'running', $sync->background_sync_status()['status'] );
+
+		$state['updated_at'] = time() - 3600;
+		update_option( SettingsRepository::OPTION_BACKGROUND_SYNC_STATE, $state );
+		$status = $sync->background_sync_status();
+
+		self::assertSame( 'complete', $status['status'] );
+		self::assertSame( 1, $status['failed'] );
+		self::assertFalse( $status['is_active'] );
+		self::assertSame( 'failed', $settings->get_sync_history()[0]['status'] );
+	}
+
 	public function test_background_sync_status_reconciles_completed_actions_for_current_progress_id(): void {
 		$GLOBALS['progress_agentic_rag_test_scheduled_actions'][] = [
 			'timestamp' => time(),
@@ -540,6 +432,39 @@ final class ManualSyncTest extends TestCase {
 		self::assertSame( 1, $status['processed'] );
 		self::assertSame( 50, $status['percent'] );
 		self::assertSame( 1, $state['completed'] );
+	}
+
+	public function test_status_does_not_count_finished_actions_while_jobs_are_pending(): void {
+		$queue = static fn ( string $hook, string $group, array $args, string $status ): array => [
+			'timestamp' => time(),
+			'hook'      => $hook,
+			'args'      => $args,
+			'group'     => $group,
+			'status'    => $status,
+		];
+
+		$GLOBALS['progress_agentic_rag_test_scheduled_actions'][] = $queue( 'progress_agentic_rag_background_sync_post', 'progress-agentic-rag-background', [ 'post_id' => 51, 'post_type' => 'post', 'background_id' => 'background-current' ], 'complete' );
+		$GLOBALS['progress_agentic_rag_test_scheduled_actions'][] = $queue( 'progress_agentic_rag_background_sync_post', 'progress-agentic-rag-background', [ 'post_id' => 52, 'post_type' => 'post', 'background_id' => 'background-current' ], 'pending' );
+		$GLOBALS['progress_agentic_rag_test_scheduled_actions'][] = $queue( 'progress_agentic_rag_delete_synced_resource', 'progress-agentic-rag-delete', [ 'delete_id' => 'delete-current' ], 'complete' );
+		$GLOBALS['progress_agentic_rag_test_scheduled_actions'][] = $queue( 'progress_agentic_rag_delete_synced_resource', 'progress-agentic-rag-delete', [ 'delete_id' => 'delete-current' ], 'pending' );
+		update_option( SettingsRepository::OPTION_BACKGROUND_SYNC_STATE, [ 'id' => 'background-current', 'status' => 'running', 'total' => 2, 'completed' => 0, 'failed' => 0 ] );
+		update_option( SettingsRepository::OPTION_DELETE_SYNC_STATE, [ 'id' => 'delete-current', 'status' => 'running', 'total' => 2, 'deleted' => 0, 'failed' => 0 ] );
+
+		$settings = new SettingsRepository();
+		$sync     = new ManualSync( $settings, new ApiClient( $settings ) );
+
+		// Counters are trusted while the queue still has work, so the finished jobs are not read.
+		self::assertSame( 0, $sync->background_sync_status()['completed'] );
+		self::assertSame( 0, $sync->delete_status()['deleted'] );
+
+		foreach ( $GLOBALS['progress_agentic_rag_test_scheduled_actions'] as &$action ) {
+			$action['status'] = 'complete';
+		}
+		unset( $action );
+
+		// Once the queue is idle but the runs are still open, the lost counters are rebuilt from the finished jobs.
+		self::assertSame( 2, $sync->background_sync_status()['completed'] );
+		self::assertSame( 2, $sync->delete_status()['deleted'] );
 	}
 
 	public function test_background_post_sync_schedules_delete_for_existing_non_indexable_post(): void {
@@ -813,7 +738,7 @@ final class ManualSyncTest extends TestCase {
 		$status = ( new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) ) )->status();
 
 		self::assertSame( 'complete', $status['status'] );
-		self::assertSame( 'Manual sync complete.', $status['message'] );
+		self::assertSame( 'Sync complete.', $status['message'] );
 		self::assertSame( 100, $status['percent'] );
 	}
 
@@ -838,11 +763,15 @@ final class ManualSyncTest extends TestCase {
 			'body'     => '{"resources":[{"id":"rid-61","slug":"61","seqid":"seq-61"}]}',
 		];
 
-		$result = ( new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) ) )->start( [ 'post' ] );
+		$store = $this->preparation_store( [], 1 );
+		$store->expects( self::once() )->method( 'record_page' )->with( self::anything(), [ [ 'slug' => '61', 'rid' => 'rid-61', 'seqid' => 'seq-61' ] ] );
+		$sync = new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ), null, $store );
+		$sync->start( [ 'post' ] );
+		$result = $this->finish_preparation( $sync );
 
 		self::assertSame( 1, $result['recovered'] );
-		self::assertStringContainsString( 'Recovered 1 existing upstream resource.', $result['message'] );
-		self::assertSame( 'rid-61', $GLOBALS['wpdb']->inserted[0]['data']['nuclia_rid'] );
+		self::assertSame( 'complete', $result['status'] );
+		self::assertSame( 0, $result['total'] );
 	}
 
 	public function test_delete_synced_resources_guard_errors_and_empty_completion(): void {
@@ -1161,7 +1090,9 @@ final class ManualSyncTest extends TestCase {
 				'failed' => 1,
 			]
 		);
+		( new SettingsRepository() )->add_failed_sync_item( 7, 'post', 'Post: Seven', 'Failed', 'background' );
 		self::assertSame( 1, $sync->ensure_automatic_sync()['failed'] );
+		self::assertSame( [], $GLOBALS['progress_agentic_rag_test_scheduled_actions'] );
 	}
 
 	public function test_schedule_background_post_sync_skips_unselected_and_duplicate_posts(): void {
@@ -1311,22 +1242,8 @@ final class ManualSyncTest extends TestCase {
 		( new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) ) )->process_background_delete( 132, 'rid-132', 'background-delete-error' );
 	}
 
-	public function test_manual_sync_edge_states_cover_recovery_delete_and_label_branches(): void {
-		$GLOBALS['wpdb']->results = [
-			(object) [
-				'ID' => '141',
-			],
-		];
-		$GLOBALS['progress_agentic_rag_test_http_responses'][] = [
-			'response' => [
-				'code' => 500,
-			],
-			'body'     => '{"detail":"Lookup failed"}',
-		];
-
+	public function test_sync_edge_states_cover_delete_and_label_branches(): void {
 		$sync = new ManualSync( new SettingsRepository(), new ApiClient( new SettingsRepository() ) );
-
-		self::assertInstanceOf( WP_Error::class, $sync->start( [ 'post' ] ) );
 
 		update_option(
 			SettingsRepository::OPTION_BACKGROUND_SYNC_STATE,
@@ -1508,5 +1425,46 @@ final class ManualSyncTest extends TestCase {
 		$action_status_ref->setAccessible( true );
 
 		self::assertSame( 'complete', $action_status_ref->invoke( $sync, 'STATUS_COMPLETE', 'fallback' ) );
+	}
+
+	private function preparation_store( array $ids, int $recovered = 0 ): PreparationStore {
+		$store = $this->createMock( PreparationStore::class );
+		$store->method( 'lock' )->willReturn( true );
+		$store->method( 'begin_item' )->willReturn( true );
+		$store->method( 'bounds' )->willReturn( [ 'mapping_limit' => 100, 'post_limit' => 100 ] );
+		foreach ( [ 'snapshot_mappings', 'snapshot_candidates', 'apply_page' ] as $method ) {
+			$store->method( $method )->willReturn( [ 'cursor' => 100, 'done' => true ] );
+		}
+		$store->method( 'candidates' )->willReturn( array_map( static fn ( $id ) => (object) [ 'post_id' => $id, 'post_type' => 'post' ], $ids ) );
+		$queued = [];
+		$outcomes = [];
+		$store->method( 'mark_queued' )->willReturnCallback( static function ( $run, $id ) use ( &$queued ): void { $queued[ $id ] = true; } );
+		$store->method( 'outcome' )->willReturnCallback( static function ( $run, $id ) use ( &$outcomes ): string { return $outcomes[ $id ] ?? ''; } );
+		$store->method( 'finish_item' )->willReturnCallback( static function ( $run, $id, $success ) use ( &$outcomes ): void { $outcomes[ $id ] = $success ? 'complete' : 'failed'; } );
+		$store->method( 'stats' )->willReturnCallback( static function () use ( &$queued, &$outcomes, $recovered ): array {
+			return [
+				'total' => count( $queued ), 'completed' => count( array_filter( $outcomes, static fn ( $outcome ) => 'complete' === $outcome ) ),
+				'failed' => count( array_filter( $outcomes, static fn ( $outcome ) => 'failed' === $outcome ) ), 'recovered' => $recovered,
+			];
+		} );
+		return $store;
+	}
+
+	private function finish_preparation( ManualSync $sync ): array {
+		$sync->register();
+		$callback = null;
+		foreach ( $GLOBALS['progress_agentic_rag_test_actions'] as $action ) {
+			if ( ManualPreparation::HOOK === $action['hook_name'] ) {
+				$callback = $action['callback'];
+			}
+		}
+		for ( $i = 0; $i < 10; $i++ ) {
+			$state = get_option( SettingsRepository::OPTION_MANUAL_SYNC_STATE );
+			if ( empty( $state['phase'] ) || 'running' !== $state['status'] ) {
+				break;
+			}
+			$callback( $state['id'], $state['step'] );
+		}
+		return $sync->status();
 	}
 }

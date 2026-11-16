@@ -12,7 +12,7 @@ defined( 'ABSPATH' ) || exit;
 	<section class="progress-agentic-rag__modal-panel" role="dialog" aria-modal="true" aria-labelledby="progress-agentic-rag-sync-title">
 		<div class="progress-agentic-rag__modal-header">
 			<div>
-				<div class="progress-agentic-rag__section-label" data-progress-agentic-rag-modal-label><?php esc_html_e( 'Manual sync', 'progress-agentic-rag-connector' ); ?></div>
+				<div class="progress-agentic-rag__section-label" data-progress-agentic-rag-modal-label><?php esc_html_e( 'Sync', 'progress-agentic-rag-connector' ); ?></div>
 				<h2 id="progress-agentic-rag-sync-title" data-progress-agentic-rag-modal-title><?php esc_html_e( 'Syncing selected content', 'progress-agentic-rag-connector' ); ?></h2>
 			</div>
 			<button type="button" class="progress-agentic-rag__modal-close" data-progress-agentic-rag-sync-close data-progress-agentic-rag-modal-close aria-label="<?php esc_attr_e( 'Close sync progress', 'progress-agentic-rag-connector' ); ?>">&times;</button>
@@ -20,7 +20,7 @@ defined( 'ABSPATH' ) || exit;
 		<div class="progress-agentic-rag__progress">
 			<div class="progress-agentic-rag__progress-meta">
 				<strong data-progress-agentic-rag-sync-percent>0%</strong>
-				<span data-progress-agentic-rag-sync-message><?php esc_html_e( 'Preparing manual sync.', 'progress-agentic-rag-connector' ); ?></span>
+				<span data-progress-agentic-rag-sync-message><?php esc_html_e( 'Preparing sync.', 'progress-agentic-rag-connector' ); ?></span>
 			</div>
 			<div class="progress-agentic-rag__progress-track" aria-hidden="true">
 				<div class="progress-agentic-rag__progress-bar" data-progress-agentic-rag-sync-bar></div>
@@ -44,5 +44,6 @@ defined( 'ABSPATH' ) || exit;
 			<span data-progress-agentic-rag-sync-current-label><?php esc_html_e( 'Current entity', 'progress-agentic-rag-connector' ); ?></span>
 			<strong data-progress-agentic-rag-sync-current><?php esc_html_e( 'Waiting to sync.', 'progress-agentic-rag-connector' ); ?></strong>
 		</div>
+		<button type="button" class="progress-agentic-rag__button progress-agentic-rag__button--danger progress-agentic-rag__sync-cancel" data-progress-agentic-rag-sync-cancel hidden><?php esc_html_e( 'Cancel sync', 'progress-agentic-rag-connector' ); ?></button>
 	</section>
 </div>

@@ -19,6 +19,9 @@
 	const mappingContainer = document.querySelector( '[data-progress-agentic-rag-mapping-container]' );
 	const addMappingButton = document.querySelector( '[data-progress-agentic-rag-add-mapping]' );
 	const modal = document.querySelector( '[data-progress-agentic-rag-sync-modal]' );
+	const syncBanner = document.querySelector( '[data-progress-agentic-rag-sync-banner]' );
+	const syncDetailsButton = document.querySelector( '[data-progress-agentic-rag-sync-details]' );
+	const cancelSyncButton = document.querySelector( '[data-progress-agentic-rag-sync-cancel]' );
 	const appearanceForm = document.querySelector( '[data-progress-agentic-rag-widget-appearance-form]' );
 	const appearancePreview = document.querySelector( '[data-progress-agentic-rag-widget-preview]' );
 	const defaultStartButtonText = config.strings && config.strings.sync ? config.strings.sync : startButton ? startButton.textContent : '';
@@ -85,6 +88,7 @@
 	let deletePollTimer = null;
 	let backgroundPollTimer = null;
 	let syncStatus = config.initialSyncStatus || {};
+	let syncRunObserved = false;
 	let deleteStatus = config.initialDeleteStatus || {};
 	let backgroundSyncStatus = config.initialBackgroundSyncStatus || {};
 	const mappingConfig = config.mapping || { taxonomies: {}, labelsets: [] };
@@ -153,6 +157,9 @@
 
 	const setModalMode = ( mode ) => {
 		const isDelete = mode === 'delete';
+		if ( cancelSyncButton ) {
+			cancelSyncButton.hidden = isDelete || ! syncIsRunning() || ! syncStatus.cancellable;
+		}
 		const closeButton = field( selectors.closeButton );
 
 		setText( selectors.label, isDelete ? config.strings.deleteModalLabel : config.strings.syncModalLabel );
@@ -236,6 +243,12 @@
 	};
 
 	const closeModal = () => {
+		// The counters on this page are rendered by PHP, so show the result of a run that finished.
+		if ( syncRunObserved && ! syncIsRunning() ) {
+			window.location.reload();
+			return;
+		}
+
 		modal.hidden = true;
 		document.body.classList.remove( 'progress-agentic-rag-sync-open' );
 		if ( pollTimer && ! syncIsRunning() ) {
@@ -246,11 +259,42 @@
 			window.clearTimeout( deletePollTimer );
 			deletePollTimer = null;
 		}
-		startButton.disabled = deleteIsRunning() ? true : startButtonInitiallyDisabled;
+		if ( startButton ) {
+			startButton.disabled = deleteIsRunning() ? true : startButtonInitiallyDisabled;
+		}
+	};
+
+	const renderBanner = ( status ) => {
+		if ( ! syncBanner ) {
+			return;
+		}
+
+		const running = syncIsRunning();
+		const percent = Math.max( 0, Math.min( 100, statusNumber( status, 'percent' ) ) );
+		const bar = syncBanner.querySelector( '[data-progress-agentic-rag-banner-bar]' );
+		const set = ( selector, value ) => {
+			const element = syncBanner.querySelector( selector );
+			if ( element ) {
+				element.textContent = value;
+			}
+		};
+
+		// A finished run stays visible until the page is reloaded so its outcome is not lost.
+		syncBanner.hidden = ! running && ! syncRunObserved;
+		syncBanner.classList.toggle( 'progress-agentic-rag__sync-banner--done', ! running );
+		if ( bar ) {
+			bar.style.width = percent + '%';
+		}
+		set( '[data-progress-agentic-rag-banner-title]', running ? config.strings.running : config.strings.syncFinished );
+		set( '[data-progress-agentic-rag-banner-message]', status.message || '' );
+		set( '[data-progress-agentic-rag-banner-percent]', percent + '%' );
 	};
 
 	const renderStatus = ( status ) => {
 		syncStatus = status || {};
+		if ( cancelSyncButton ) {
+			cancelSyncButton.hidden = ! syncIsRunning() || ! status.cancellable;
+		}
 		if ( pollTimer ) {
 			window.clearTimeout( pollTimer );
 			pollTimer = null;
@@ -271,15 +315,22 @@
 		setText( selectors.current, status.current || '' );
 
 		if ( syncIsRunning() ) {
-			startButton.textContent = runningButtonText( status );
-			startButton.disabled = false;
+			syncRunObserved = true;
+			renderBanner( status );
+			if ( startButton ) {
+				startButton.textContent = runningButtonText( status );
+				startButton.disabled = false;
+				startButton.classList.add( 'progress-agentic-rag__button--busy' );
+			}
 			pollTimer = window.setTimeout( pollStatus, 2000 );
 			return;
 		}
 
-		if ( status.status !== 'starting' ) {
+		renderBanner( status );
+		if ( startButton && status.status !== 'starting' ) {
 			startButton.textContent = defaultStartButtonText;
 			startButton.disabled = startButtonInitiallyDisabled;
+			startButton.classList.remove( 'progress-agentic-rag__button--busy' );
 		}
 	};
 
@@ -299,8 +350,8 @@
 		try {
 			renderStatus( await request( 'progress_agentic_rag_manual_sync_status' ) );
 		} catch ( error ) {
-			startButton.disabled = false;
-			renderError( error.message );
+			setText( selectors.message, config.strings.pollInterrupted );
+			pollTimer = window.setTimeout( pollStatus, 10000 );
 		}
 	};
 
@@ -332,7 +383,9 @@
 		if ( deleteIsRunning() ) {
 			deleteSyncedButton.textContent = deleteButtonText( status );
 			deleteSyncedButton.disabled = false;
-			startButton.disabled = true;
+			if ( startButton ) {
+				startButton.disabled = true;
+			}
 			deletePollTimer = window.setTimeout( pollDeleteStatus, 2000 );
 			return;
 		}
@@ -348,7 +401,7 @@
 		if ( status.status !== 'starting' ) {
 			deleteSyncedButton.textContent = defaultDeleteButtonText;
 			deleteSyncedButton.disabled = deleteButtonInitiallyDisabled;
-			if ( ! syncIsRunning() ) {
+			if ( startButton && ! syncIsRunning() ) {
 				startButton.disabled = startButtonInitiallyDisabled;
 			}
 		}
@@ -809,40 +862,65 @@
 		} );
 	}
 
-	if ( startButton && modal ) {
-		startButton.addEventListener( 'click', async () => {
+	if ( modal ) {
+		if ( cancelSyncButton ) {
+			cancelSyncButton.addEventListener( 'click', async () => {
+				cancelSyncButton.disabled = true;
+				try {
+					renderStatus( await request( 'progress_agentic_rag_manual_sync_cancel' ) );
+				} catch ( error ) {
+					window.alert( error.message );
+				} finally {
+					cancelSyncButton.disabled = false;
+				}
+			} );
+		}
+
+		const showSyncProgress = async () => {
 			setModalMode( 'sync' );
 			openModal();
 
-			if ( syncIsRunning() ) {
-				try {
-					renderStatus( await request( 'progress_agentic_rag_manual_sync_status' ) );
-				} catch ( error ) {
-					renderError( error.message );
-				}
-				return;
-			}
-
-			const postTypes = selectedPostTypes();
-			startButton.disabled = true;
-
 			try {
-				renderStatus( {
-					status: 'starting',
-					total: 0,
-					completed: 0,
-					failed: 0,
-					current: '',
-					message: config.strings.starting,
-					percent: 0,
-				} );
-				renderStatus( await request( 'progress_agentic_rag_manual_sync_start', { post_types: postTypes } ) );
+				renderStatus( await request( 'progress_agentic_rag_manual_sync_status' ) );
 			} catch ( error ) {
-				startButton.disabled = false;
 				renderError( error.message );
 			}
-		} );
+		};
 
+		if ( syncDetailsButton ) {
+			syncDetailsButton.addEventListener( 'click', showSyncProgress );
+		}
+
+		if ( startButton ) {
+			startButton.addEventListener( 'click', async () => {
+				if ( syncIsRunning() ) {
+					showSyncProgress();
+					return;
+				}
+
+				setModalMode( 'sync' );
+				openModal();
+
+				const postTypes = selectedPostTypes();
+				startButton.disabled = true;
+
+				try {
+					renderStatus( {
+						status: 'starting',
+						total: 0,
+						completed: 0,
+						failed: 0,
+						current: '',
+						message: config.strings.starting,
+						percent: 0,
+					} );
+					renderStatus( await request( 'progress_agentic_rag_manual_sync_start', { post_types: postTypes } ) );
+				} catch ( error ) {
+					startButton.disabled = false;
+					renderError( error.message );
+				}
+			} );
+		}
 		if ( syncIsRunning() ) {
 			renderStatus( syncStatus );
 		}

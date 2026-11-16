@@ -362,97 +362,67 @@ final class ApiClient {
 	}
 
 	/**
-	 * @param list<int|string> $post_ids
+	 * Fetch exactly one page for checkpointed background preparation.
+	 *
+	 * @return array{resources:list<array{slug:string,rid:string,seqid:string}>,last:bool,fingerprint:string}|WP_Error
 	 */
-	public function recover_existing_resources( array $post_ids ): int|WP_Error {
-		$slugs = [];
-
-		foreach ( $post_ids as $post_id ) {
-			$post_id = (int) $post_id;
-			if ( $post_id > 0 ) {
-				$slugs[ (string) $post_id ] = $post_id;
+	public function resource_page( int $page ): array|WP_Error {
+		$endpoint = $this->endpoint();
+		$token = $this->settings->get_string( SettingsRepository::OPTION_TOKEN );
+		if ( '' === $endpoint || '' === $token ) {
+			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag-connector' ), [ 'retryable' => false ] );
+		}
+		$response = wp_remote_request( $endpoint . 'resources?page=' . $page . '&size=250', [
+			'method' => 'GET',
+			'headers' => [ 'X-NUCLIA-SERVICEACCOUNT' => 'Bearer ' . $token ],
+			'timeout' => 30,
+		] );
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		if ( 200 !== $code ) {
+			$retry_after = (string) wp_remote_retrieve_header( $response, 'retry-after' );
+			$delay = ctype_digit( $retry_after ) ? (int) $retry_after : max( 0, (int) strtotime( $retry_after ) - time() );
+			return new WP_Error(
+				429 === $code ? 'progress_agentic_rag_rate_limited' : 'progress_agentic_rag_resource_page_failed',
+				429 === $code
+					? __( 'Progress Agentic RAG rate limit reached. Preparation will retry after a delay.', 'progress-agentic-rag-connector' )
+					: $this->response_error_message( $response, __( 'Could not retrieve a resource page.', 'progress-agentic-rag-connector' ) ),
+				[ 'retryable' => 429 === $code || $code >= 500, 'retry_after' => max( 30, min( 3600, $delay ) ) ]
+			);
+		}
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		$pagination = is_array( $body['pagination'] ?? null ) ? $body['pagination'] : [];
+		if ( ! is_array( $body['resources'] ?? null ) || ! array_is_list( $body['resources'] )
+			|| ( isset( $body['pagination'] ) && ! is_array( $body['pagination'] ) )
+			|| ( array_key_exists( 'last', $pagination ) && ! is_bool( $pagination['last'] ) )
+			|| ( isset( $pagination['page'] ) && ( ( ! is_int( $pagination['page'] ) && ! is_string( $pagination['page'] ) )
+				|| ! ctype_digit( (string) $pagination['page'] ) || $page !== (int) $pagination['page'] ) ) ) {
+			return new WP_Error( 'progress_agentic_rag_invalid_resource_page', __( 'The API returned an invalid resource page. Existing mappings were preserved.', 'progress-agentic-rag-connector' ), [ 'retryable' => false ] );
+		}
+		$resources = [];
+		foreach ( $body['resources'] as $resource ) {
+			$rid = is_array( $resource ) ? ( $resource['id'] ?? $resource['uuid'] ?? '' ) : '';
+			$slug = $resource['slug'] ?? '';
+			$seqid = $resource['last_seqid'] ?? $resource['seqid'] ?? '';
+			if ( ! is_string( $rid ) || '' === $rid || ! is_scalar( $slug ) || ! is_scalar( $seqid ) ) {
+				return new WP_Error( 'progress_agentic_rag_invalid_resource_page', __( 'The API returned an invalid resource. Existing mappings were preserved.', 'progress-agentic-rag-connector' ), [ 'retryable' => false ] );
 			}
-		}
-
-		if ( empty( $slugs ) ) {
-			return 0;
-		}
-
-		$resources = $this->find_resources_by_slugs( array_keys( $slugs ) );
-		if ( is_wp_error( $resources ) ) {
-			return $resources;
-		}
-
-		$recovered = 0;
-		foreach ( $resources as $slug => $resource ) {
-			if ( '' === $resource['rid'] ) {
-				continue;
-			}
-
-			$this->upsert_index( $slugs[ $slug ], $resource['rid'], $resource['seqid'] );
-			$recovered++;
-		}
-
-		return $recovered;
-	}
-
-	/**
-	 * @return array{checked:int,removed:int,updated:int}|WP_Error
-	 */
-	public function reconcile_synced_resources(): array|WP_Error {
-		$mapped = [];
-
-		foreach ( $this->get_synced_resources() as $resource ) {
-			$post_id = isset( $resource->post_id ) ? (int) $resource->post_id : 0;
-			$rid     = isset( $resource->nuclia_rid ) ? sanitize_text_field( (string) $resource->nuclia_rid ) : '';
-			if ( $post_id <= 0 || '' === $rid ) {
-				continue;
-			}
-
-			$mapped[ (string) $post_id ] = [
-				'post_id' => $post_id,
-				'rid'     => $rid,
-				'seqid'   => isset( $resource->nuclia_seqid ) ? sanitize_text_field( (string) $resource->nuclia_seqid ) : '',
+			$resources[] = [
+				'slug' => (string) $slug,
+				'rid' => sanitize_text_field( $rid ),
+				'seqid' => sanitize_text_field( (string) $seqid ),
 			];
 		}
-
-		if ( empty( $mapped ) ) {
-			return [
-				'checked' => 0,
-				'removed' => 0,
-				'updated' => 0,
-			];
+		$last = array_key_exists( 'last', $pagination ) ? (bool) $pagination['last'] : count( $resources ) < 250;
+		if ( empty( $resources ) && ! $last ) {
+			return new WP_Error( 'progress_agentic_rag_invalid_resource_page', __( 'The API returned an empty non-final page. Existing mappings were preserved.', 'progress-agentic-rag-connector' ), [ 'retryable' => false ] );
 		}
-
-		$resources = $this->find_resources_by_slugs( array_keys( $mapped ) );
-		if ( is_wp_error( $resources ) ) {
-			return $resources;
-		}
-
-		$removed = 0;
-		$updated = 0;
-		foreach ( $mapped as $slug => $local ) {
-			$resource = $resources[ $slug ] ?? [
-				'rid'   => '',
-				'seqid' => '',
-			];
-
-			if ( '' === $resource['rid'] ) {
-				$this->delete_index( $local['post_id'] );
-				$removed++;
-				continue;
-			}
-
-			if ( $resource['rid'] !== $local['rid'] || ( '' !== $resource['seqid'] && $resource['seqid'] !== $local['seqid'] ) ) {
-				$this->upsert_index( $local['post_id'], $resource['rid'], '' !== $resource['seqid'] ? $resource['seqid'] : $local['seqid'] );
-				$updated++;
-			}
-		}
-
 		return [
-			'checked' => count( $mapped ),
-			'removed' => $removed,
-			'updated' => $updated,
+			'resources' => $resources,
+			'last' => $last,
+			'fingerprint' => hash( 'sha256', wp_json_encode( array_column( $resources, 'rid' ) ) ),
 		];
 	}
 
@@ -474,94 +444,58 @@ final class ApiClient {
 	/**
 	 * @return array{rid:string,seqid:string}|WP_Error
 	 */
-	private function find_resource_by_slug( string $slug ): array|WP_Error {
-		if ( '' === $slug ) {
-			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag-connector' ) );
-		}
-
-		$resources = $this->find_resources_by_slugs( [ $slug ] );
-		if ( is_wp_error( $resources ) ) {
-			return $resources;
-		}
-
-		return $resources[ $slug ] ?? [
-			'rid'   => '',
-			'seqid' => '',
-		];
-	}
-
-	/**
-	 * @param list<string> $slugs
-	 *
-	 * @return array<string, array{rid:string,seqid:string}>|WP_Error
-	 */
-	private function find_resources_by_slugs( array $slugs ): array|WP_Error {
+	public function find_resource_by_slug( string $slug ): array|WP_Error {
 		$endpoint = $this->endpoint();
 		$token    = $this->settings->get_string( SettingsRepository::OPTION_TOKEN );
-		$lookup   = [];
-
-		foreach ( $slugs as $slug ) {
-			$slug = trim( (string) $slug );
-			if ( '' !== $slug ) {
-				$lookup[ $slug ] = true;
-			}
-		}
-
-		if ( empty( $lookup ) ) {
-			return [];
-		}
-
-		if ( '' === $endpoint || '' === $token ) {
+		if ( '' === $slug || '' === $endpoint || '' === $token ) {
 			return new WP_Error( 'progress_agentic_rag_missing_connection', __( 'Progress Agentic RAG connection settings are incomplete.', 'progress-agentic-rag-connector' ) );
 		}
 
-		$page_size = 250;
-		$offset    = 0;
-		$matches   = [];
+		$response = wp_remote_request(
+			$endpoint . 'slug/' . rawurlencode( $slug ),
+			[
+				'method'  => 'GET',
+				'headers' => [
+					'X-NUCLIA-SERVICEACCOUNT' => 'Bearer ' . $token,
+				],
+				'timeout' => 30,
+			]
+		);
 
-		do {
-			$response = wp_remote_request(
-				$endpoint . 'resources?from=' . $offset . '&size=' . $page_size,
-				[
-					'method'  => 'GET',
-					'headers' => [
-						'X-NUCLIA-SERVICEACCOUNT' => 'Bearer ' . $token,
-					],
-					'timeout' => 30,
-				]
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		if ( 404 === $code ) {
+			return [
+				'rid'   => '',
+				'seqid' => '',
+			];
+		}
+
+		if ( 200 !== $code ) {
+			return new WP_Error(
+				429 === $code ? 'progress_agentic_rag_rate_limited' : 'progress_agentic_rag_existing_resource_lookup_failed',
+				429 === $code
+					? __( 'Progress Agentic RAG rate limit reached. Please retry shortly.', 'progress-agentic-rag-connector' )
+					: $this->response_error_message( $response, __( 'Progress Agentic RAG could not look up the existing resource.', 'progress-agentic-rag-connector' ) )
 			);
+		}
 
-			if ( is_wp_error( $response ) ) {
-				return $response;
-			}
+		$resource = json_decode( wp_remote_retrieve_body( $response ), true );
+		$resource = is_array( $resource ) ? $resource : [];
+		$rid      = sanitize_text_field( (string) ( $resource['id'] ?? $resource['uuid'] ?? '' ) );
 
-			if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
-				return new WP_Error( 'progress_agentic_rag_existing_resource_lookup_failed', $this->response_error_message( $response, __( 'Progress Agentic RAG could not look up the existing resource.', 'progress-agentic-rag-connector' ) ) );
-			}
+		// Only a 404 means "missing"; a 200 without an id (e.g. a proxy error page) must not look like one.
+		if ( '' === $rid ) {
+			return new WP_Error( 'progress_agentic_rag_existing_resource_lookup_failed', __( 'Progress Agentic RAG returned an unexpected response while looking up the existing resource.', 'progress-agentic-rag-connector' ) );
+		}
 
-			$api_response = json_decode( wp_remote_retrieve_body( $response ), true );
-			$resources    = is_array( $api_response['resources'] ?? null ) ? $api_response['resources'] : [];
-
-			foreach ( $resources as $resource ) {
-				$slug = is_array( $resource ) ? (string) ( $resource['slug'] ?? '' ) : '';
-				if ( ! isset( $lookup[ $slug ] ) ) {
-					continue;
-				}
-
-				$matches[ $slug ] = [
-					'rid'   => sanitize_text_field( (string) ( $resource['id'] ?? $resource['uuid'] ?? '' ) ),
-					'seqid' => sanitize_text_field( (string) ( $resource['last_seqid'] ?? $resource['seqid'] ?? '' ) ),
-				];
-
-				if ( count( $matches ) === count( $lookup ) ) {
-					break 2;
-				}
-			}
-
-			$offset += $page_size;
-		} while ( count( $resources ) === $page_size );
-
-		return $matches;
+		return [
+			'rid'   => $rid,
+			'seqid' => sanitize_text_field( (string) ( $resource['last_seqid'] ?? $resource['seqid'] ?? '' ) ),
+		];
 	}
 
 	/**

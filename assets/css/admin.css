@@ -730,6 +730,16 @@ body.toplevel_page_progress-agentic-rag #wpcontent {
 	color: var(--progress-agentic-rag-color-danger-regular);
 }
 
+.progress-agentic-rag__sync-cancel {
+	display: flex;
+	margin: 1rem 0 0 auto;
+	width: fit-content;
+}
+
+.progress-agentic-rag__sync-cancel[hidden] {
+	display: none;
+}
+
 .progress-agentic-rag__button:disabled {
 	background: hsl(220, 18%, 92%);
 	border-color: hsl(220, 18%, 88%);
@@ -918,6 +928,82 @@ body.toplevel_page_progress-agentic-rag #wpcontent {
 	height: 100%;
 	transition: width 180ms ease;
 	width: 0;
+}
+
+.progress-agentic-rag__spinner,
+.progress-agentic-rag__button--busy::before {
+	animation: progress-agentic-rag-spin 800ms linear infinite;
+	border: 2px solid currentcolor;
+	border-radius: 50%;
+	border-right-color: transparent;
+	box-sizing: border-box;
+	flex: none;
+	height: 1em;
+	width: 1em;
+}
+
+.progress-agentic-rag__button--busy::before {
+	content: "";
+	margin-right: var(--progress-agentic-rag-space-075);
+}
+
+.progress-agentic-rag__sync-banner {
+	align-items: center;
+	background: var(--progress-agentic-rag-color-light-stronger);
+	border: 1px solid var(--progress-agentic-rag-surface-border);
+	border-left: 4px solid var(--progress-agentic-rag-color-primary-regular);
+	border-radius: var(--progress-agentic-rag-card-border-radius);
+	color: var(--progress-agentic-rag-color-primary-regular);
+	display: flex;
+	gap: var(--progress-agentic-rag-space-2);
+	margin-bottom: var(--progress-agentic-rag-space-2);
+	padding: var(--progress-agentic-rag-space-2);
+}
+
+.progress-agentic-rag__sync-banner[hidden] {
+	display: none;
+}
+
+.progress-agentic-rag__sync-banner--done {
+	border-left-color: var(--progress-agentic-rag-color-success-regular);
+	color: var(--progress-agentic-rag-color-success-regular);
+}
+
+.progress-agentic-rag__sync-banner--done .progress-agentic-rag__spinner {
+	display: none;
+}
+
+.progress-agentic-rag__sync-banner-body {
+	flex: 1;
+	min-width: 0;
+}
+
+.progress-agentic-rag__sync-banner-text {
+	color: var(--progress-agentic-rag-color-dark-stronger);
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--progress-agentic-rag-space-1);
+}
+
+.progress-agentic-rag__sync-banner-text span {
+	color: var(--progress-agentic-rag-color-neutral-regular);
+}
+
+.progress-agentic-rag__sync-banner-percent {
+	font-size: var(--progress-agentic-rag-font-size-display-s);
+}
+
+@keyframes progress-agentic-rag-spin {
+	to {
+		transform: rotate( 360deg );
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.progress-agentic-rag__spinner,
+	.progress-agentic-rag__button--busy::before {
+		animation-duration: 3s;
+	}
 }
 
 .progress-agentic-rag__sync-stats {
